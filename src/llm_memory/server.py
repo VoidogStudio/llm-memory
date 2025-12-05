@@ -14,10 +14,19 @@ from llm_memory.db.repositories.memory_repository import MemoryRepository
 from llm_memory.embeddings.local import LocalEmbeddingProvider
 from llm_memory.embeddings.openai import OpenAIEmbeddingProvider
 from llm_memory.services.agent_service import AgentService
+from llm_memory.services.consolidation_service import ConsolidationService
 from llm_memory.services.embedding_service import EmbeddingService
+from llm_memory.services.importance_service import ImportanceService
 from llm_memory.services.knowledge_service import KnowledgeService
 from llm_memory.services.memory_service import MemoryService
-from llm_memory.tools import agent_tools, knowledge_tools, memory_tools
+from llm_memory.tools import (
+    agent_tools,
+    batch_tools,
+    consolidation_tools,
+    importance_tools,
+    knowledge_tools,
+    memory_tools,
+)
 
 # Initialize FastMCP server
 mcp = FastMCP("llm-memory")
@@ -26,6 +35,8 @@ mcp = FastMCP("llm-memory")
 memory_service: MemoryService | None = None
 agent_service: AgentService | None = None
 knowledge_service: KnowledgeService | None = None
+importance_service: ImportanceService | None = None
+consolidation_service: ConsolidationService | None = None
 db: Database | None = None
 
 # Background tasks
@@ -38,7 +49,7 @@ async def initialize_services(settings: Settings) -> None:
     Args:
         settings: Application settings
     """
-    global memory_service, agent_service, knowledge_service, db
+    global memory_service, agent_service, knowledge_service, importance_service, consolidation_service, db
 
     # Initialize database
     db = Database(settings.database_path, settings.embedding_dimensions)
@@ -68,6 +79,9 @@ async def initialize_services(settings: Settings) -> None:
 
     knowledge_repo = KnowledgeRepository(db)
     knowledge_service = KnowledgeService(knowledge_repo, embedding_service)
+
+    importance_service = ImportanceService(memory_repo)
+    consolidation_service = ConsolidationService(memory_repo, embedding_service)
 
     # Start background tasks
     await start_background_tasks()
@@ -484,6 +498,110 @@ async def knowledge_query(
         raise RuntimeError("Services not initialized")
     return await knowledge_tools.knowledge_query(
         knowledge_service, query, top_k, category, document_id, include_document_info
+    )
+
+
+# Batch Tools
+@mcp.tool()
+async def memory_batch_store(
+    items: list[dict[str, Any]],
+    on_error: str = "rollback",
+) -> dict[str, Any]:
+    """Store multiple memories in a single batch operation.
+
+    Args:
+        items: List of memory items (each has memory_store params)
+        on_error: Error handling strategy (rollback/continue/stop)
+
+    Returns:
+        Batch operation result with success/error counts
+    """
+    if not memory_service:
+        raise RuntimeError("Services not initialized")
+    return await batch_tools.memory_batch_store(memory_service, items, on_error)
+
+
+@mcp.tool()
+async def memory_batch_update(
+    updates: list[dict[str, Any]],
+    on_error: str = "rollback",
+) -> dict[str, Any]:
+    """Update multiple memories in a single batch operation.
+
+    Args:
+        updates: List of updates (each has {id: str, ...fields})
+        on_error: Error handling strategy (rollback/continue/stop)
+
+    Returns:
+        Batch operation result with success/error counts
+    """
+    if not memory_service:
+        raise RuntimeError("Services not initialized")
+    return await batch_tools.memory_batch_update(memory_service, updates, on_error)
+
+
+# Importance Tools
+@mcp.tool()
+async def memory_get_score(id: str) -> dict[str, Any]:
+    """Get importance score for a memory.
+
+    Args:
+        id: Memory ID
+
+    Returns:
+        Score info with access statistics
+    """
+    if not importance_service:
+        raise RuntimeError("Services not initialized")
+    return await importance_tools.memory_get_score(importance_service, id)
+
+
+@mcp.tool()
+async def memory_set_score(
+    id: str,
+    score: float,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """Manually set importance score for a memory.
+
+    Args:
+        id: Memory ID
+        score: New score (0.0-1.0)
+        reason: Optional reason for manual override (for audit trail)
+
+    Returns:
+        Previous and new score info
+    """
+    if not importance_service:
+        raise RuntimeError("Services not initialized")
+    return await importance_tools.memory_set_score(importance_service, id, score, reason)
+
+
+# Consolidation Tools
+@mcp.tool()
+async def memory_consolidate(
+    memory_ids: list[str],
+    summary_strategy: str = "auto",
+    preserve_originals: bool = True,
+    tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Consolidate multiple memories into a single summarized memory.
+
+    Args:
+        memory_ids: List of memory IDs to consolidate (2-50)
+        summary_strategy: Summarization strategy (auto/extractive)
+        preserve_originals: Keep original memories (default True)
+        tags: Tags for consolidated memory
+        metadata: Additional metadata
+
+    Returns:
+        Consolidation result
+    """
+    if not consolidation_service:
+        raise RuntimeError("Services not initialized")
+    return await consolidation_tools.memory_consolidate(
+        consolidation_service, memory_ids, summary_strategy, preserve_originals, tags, metadata
     )
 
 

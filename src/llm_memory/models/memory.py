@@ -39,6 +39,12 @@ class Memory(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: datetime | None = None
+    # Importance scoring fields (FR-002)
+    importance_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    access_count: int = Field(default=0, ge=0)
+    last_accessed_at: datetime | None = None
+    # Memory consolidation field (FR-001)
+    consolidated_from: list[str] | None = None
 
 
 class MemoryCreate(BaseModel):
@@ -67,3 +73,6 @@ class SearchResult(BaseModel):
 
     memory: Memory
     similarity: float
+    # Hybrid search fields (FR-003)
+    keyword_score: float | None = None
+    combined_score: float | None = None

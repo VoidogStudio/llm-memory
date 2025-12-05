@@ -1,6 +1,6 @@
 [project]
 name = "llm-memory"
-version = "1.0.0"
+version = "1.1.0"
 description = "LLM Multimodal Persistent Memory Storage - MCP Server"
 readme = "README.md"
 license = { text = "MIT" }
@@ -48,10 +48,16 @@ local = [
 openai = [
     "openai>=1.0.0",
 ]
+japanese = [
+    "sudachipy>=0.6.8",
+    "sudachidict-core>=20250129",
+]
 all = [
     "sentence-transformers>=2.2.0",
     "torch>=2.0.0",
     "openai>=1.0.0",
+    "sudachipy>=0.6.8",
+    "sudachidict-core>=20250129",
 ]
 dev = [
     "pytest>=7.0.0",

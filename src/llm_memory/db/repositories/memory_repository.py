@@ -1,7 +1,7 @@
 """Memory repository for database operations."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from llm_memory.db.database import Database
@@ -19,47 +19,77 @@ class MemoryRepository:
         """
         self.db = db
 
-    async def create(self, memory: Memory, embedding: list[float]) -> Memory:
+    async def create(
+        self, memory: Memory, embedding: list[float], use_transaction: bool = True
+    ) -> Memory:
         """Create a new memory entry with embedding.
 
         Args:
             memory: Memory object to create
             embedding: Embedding vector
+            use_transaction: Whether to wrap in transaction (False for batch operations)
 
         Returns:
             Created memory object
         """
-        async with self.db.transaction():
-            # Insert memory
-            await self.db.execute(
-                """
-                INSERT INTO memories (
-                    id, content, content_type, memory_tier, tags, metadata,
-                    agent_id, created_at, updated_at, expires_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    memory.id,
-                    memory.content,
-                    memory.content_type.value,
-                    memory.memory_tier.value,
-                    json.dumps(memory.tags),
-                    json.dumps(memory.metadata),
-                    memory.agent_id,
-                    memory.created_at.isoformat(),
-                    memory.updated_at.isoformat(),
-                    memory.expires_at.isoformat() if memory.expires_at else None,
-                ),
-            )
-
-            # Insert embedding
-            embedding_str = json.dumps(embedding)
-            await self.db.execute(
-                "INSERT INTO embeddings (memory_id, embedding) VALUES (?, ?)",
-                (memory.id, embedding_str),
-            )
+        if use_transaction:
+            async with self.db.transaction():
+                await self._insert_memory_and_embedding(memory, embedding)
+        else:
+            await self._insert_memory_and_embedding(memory, embedding)
 
         return memory
+
+    async def _insert_memory_and_embedding(
+        self, memory: Memory, embedding: list[float]
+    ) -> None:
+        """Internal method to insert memory and embedding without transaction.
+
+        Args:
+            memory: Memory object to create
+            embedding: Embedding vector
+        """
+        # Insert memory
+        await self.db.execute(
+            """
+            INSERT INTO memories (
+                id, content, content_type, memory_tier, tags, metadata,
+                agent_id, created_at, updated_at, expires_at,
+                importance_score, access_count, last_accessed_at, consolidated_from
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                memory.id,
+                memory.content,
+                memory.content_type.value,
+                memory.memory_tier.value,
+                json.dumps(memory.tags),
+                json.dumps(memory.metadata),
+                memory.agent_id,
+                memory.created_at.isoformat(),
+                memory.updated_at.isoformat(),
+                memory.expires_at.isoformat() if memory.expires_at else None,
+                memory.importance_score,
+                memory.access_count,
+                (
+                    memory.last_accessed_at.isoformat()
+                    if memory.last_accessed_at
+                    else None
+                ),
+                (
+                    json.dumps(memory.consolidated_from)
+                    if memory.consolidated_from
+                    else None
+                ),
+            ),
+        )
+
+        # Insert embedding
+        embedding_str = json.dumps(embedding)
+        await self.db.execute(
+            "INSERT INTO embeddings (memory_id, embedding) VALUES (?, ?)",
+            (memory.id, embedding_str),
+        )
 
     async def find_by_id(self, memory_id: str) -> Memory | None:
         """Find memory by ID.
@@ -80,12 +110,13 @@ class MemoryRepository:
 
         return self._row_to_memory(row)
 
-    async def update(self, memory_id: str, updates: dict[str, Any]) -> Memory | None:
+    async def update(self, memory_id: str, updates: dict[str, Any], use_transaction: bool = True) -> Memory | None:
         """Update memory entry.
 
         Args:
             memory_id: Memory ID
             updates: Fields to update
+            use_transaction: Whether to wrap in transaction (default True)
 
         Returns:
             Updated memory or None if not found
@@ -134,7 +165,14 @@ class MemoryRepository:
         params.append(datetime.now(timezone.utc).isoformat())
         params.append(memory_id)
 
-        async with self.db.transaction():
+        if use_transaction:
+            async with self.db.transaction():
+                await self.db.execute(
+                    f"UPDATE memories SET {', '.join(set_clauses)} WHERE id = ?", tuple(params)
+                )
+
+                # If content updated, update embedding (handled by service layer)
+        else:
             await self.db.execute(
                 f"UPDATE memories SET {', '.join(set_clauses)} WHERE id = ?", tuple(params)
             )
@@ -337,29 +375,29 @@ class MemoryRepository:
         Returns:
             List of search results with similarity scores
         """
-        # Build WHERE clause for filters
+        # Build WHERE clause and parameters using safe construction
+        # Always include base join condition
         where_clauses = ["e.memory_id = m.id"]
-        params: list[Any] = [json.dumps(embedding)]
+        filter_params: list[Any] = []
 
         if memory_tier:
             where_clauses.append("m.memory_tier = ?")
-            params.append(memory_tier.value)
+            filter_params.append(memory_tier.value)
 
         if content_type:
             where_clauses.append("m.content_type = ?")
-            params.append(content_type)
+            filter_params.append(content_type)
 
         if tags:
             for tag in tags:
                 where_clauses.append(
                     "EXISTS (SELECT 1 FROM json_each(m.tags) WHERE value = ?)"
                 )
-                params.append(tag)
+                filter_params.append(tag)
 
         where_clause = " AND ".join(where_clauses)
 
-        # Perform vector search
-        # The WHERE clause is built from validated enum values and parameterized queries
+        # Perform vector search with fully parameterized query
         # sqlite-vec requires LIMIT in the subquery for knn searches
         cursor = await self.db.execute(
             f"""
@@ -376,7 +414,7 @@ class MemoryRepository:
             JOIN memories m ON {where_clause}
             ORDER BY distance
             """,
-            tuple([params[0], top_k] + params[1:]),
+            tuple([json.dumps(embedding), top_k] + filter_params),
         )
 
         rows = await cursor.fetchall()
@@ -435,17 +473,328 @@ class MemoryRepository:
         Returns:
             Memory object
         """
+        # Convert Row to dict to support .get() method
+        row_dict = dict(row)
+
         return Memory(
-            id=row["id"],
-            content=row["content"],
-            content_type=row["content_type"],
-            memory_tier=row["memory_tier"],
-            tags=json.loads(row["tags"]) if row["tags"] else [],
-            metadata=json.loads(row["metadata"]) if row["metadata"] else {},
-            agent_id=row["agent_id"],
-            created_at=datetime.fromisoformat(row["created_at"]),
-            updated_at=datetime.fromisoformat(row["updated_at"]),
+            id=row_dict["id"],
+            content=row_dict["content"],
+            content_type=row_dict["content_type"],
+            memory_tier=row_dict["memory_tier"],
+            tags=json.loads(row_dict["tags"]) if row_dict["tags"] else [],
+            metadata=json.loads(row_dict["metadata"]) if row_dict["metadata"] else {},
+            agent_id=row_dict["agent_id"],
+            created_at=datetime.fromisoformat(row_dict["created_at"]),
+            updated_at=datetime.fromisoformat(row_dict["updated_at"]),
             expires_at=(
-                datetime.fromisoformat(row["expires_at"]) if row["expires_at"] else None
+                datetime.fromisoformat(row_dict["expires_at"])
+                if row_dict["expires_at"]
+                else None
+            ),
+            importance_score=row_dict.get("importance_score", 0.5),
+            access_count=row_dict.get("access_count", 0),
+            last_accessed_at=(
+                datetime.fromisoformat(row_dict["last_accessed_at"])
+                if row_dict.get("last_accessed_at")
+                else None
+            ),
+            consolidated_from=(
+                json.loads(row_dict["consolidated_from"])
+                if row_dict.get("consolidated_from")
+                else None
             ),
         )
+
+    async def log_access(
+        self,
+        memory_id: str,
+        access_type: str,
+        timestamp: datetime | None = None,
+    ) -> None:
+        """Log memory access with rate limiting to prevent log flooding.
+
+        Rate limiting: Only logs if no entry exists for this memory within the last 60 seconds.
+        This prevents DoS attacks via access log flooding while maintaining useful analytics.
+
+        Also updates access_count and last_accessed_at on the memory.
+
+        Args:
+            memory_id: Memory ID
+            access_type: 'get' or 'search'
+            timestamp: Optional timestamp for testing (defaults to current time)
+        """
+        import uuid
+
+        now = timestamp if timestamp else datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+
+        # Rate limiting: Check if there's a recent log entry (within 60 seconds)
+        one_minute_ago = (now - timedelta(seconds=60)).isoformat()
+
+        cursor = await self.db.execute(
+            """
+            SELECT 1 FROM memory_access_log
+            WHERE memory_id = ? AND access_type = ? AND accessed_at > ?
+            LIMIT 1
+            """,
+            (memory_id, access_type, one_minute_ago),
+        )
+        recent_log = await cursor.fetchone()
+
+        # Only insert if no recent log exists (rate limiting)
+        if recent_log is None:
+            log_id = str(uuid.uuid4())
+            await self.db.execute(
+                """
+                INSERT INTO memory_access_log (id, memory_id, accessed_at, access_type)
+                VALUES (?, ?, ?, ?)
+                """,
+                (log_id, memory_id, now_iso, access_type),
+            )
+            await self.db.commit()
+
+        # Always update access_count and last_accessed_at on the memory
+        await self.db.execute(
+            """
+            UPDATE memories
+            SET access_count = access_count + 1, last_accessed_at = ?
+            WHERE id = ?
+            """,
+            (now_iso, memory_id),
+        )
+        await self.db.commit()
+
+    async def update_importance(
+        self,
+        memory_id: str,
+        score: float,
+        access_count: int | None = None,
+        last_accessed_at: datetime | None = None,
+    ) -> None:
+        """Update importance score fields.
+
+        Args:
+            memory_id: Memory ID
+            score: New importance score
+            access_count: Optional access count update
+            last_accessed_at: Optional last access time update
+        """
+        updates = ["importance_score = ?"]
+        params: list[Any] = [score]
+
+        if access_count is not None:
+            updates.append("access_count = ?")
+            params.append(access_count)
+
+        if last_accessed_at is not None:
+            updates.append("last_accessed_at = ?")
+            params.append(last_accessed_at.isoformat())
+
+        params.append(memory_id)
+
+        await self.db.execute(
+            f"UPDATE memories SET {', '.join(updates)} WHERE id = ?",
+            tuple(params),
+        )
+        await self.db.commit()
+
+    async def get_access_stats(self, memory_id: str) -> dict:
+        """Get access statistics for a memory.
+
+        Args:
+            memory_id: Memory ID
+
+        Returns:
+            {access_count, last_accessed_at, importance_score, created_at}
+
+        Raises:
+            NotFoundError: If memory doesn't exist
+        """
+        from llm_memory.exceptions import NotFoundError
+
+        cursor = await self.db.execute(
+            """
+            SELECT access_count, last_accessed_at, importance_score, created_at
+            FROM memories WHERE id = ?
+            """,
+            (memory_id,),
+        )
+        row = await cursor.fetchone()
+
+        if not row:
+            raise NotFoundError(f"Memory not found: {memory_id}")
+
+        return {
+            "access_count": row[0] or 0,
+            "last_accessed_at": (
+                datetime.fromisoformat(row[1]) if row[1] else None
+            ),
+            "importance_score": row[2] or 0.5,
+            "created_at": datetime.fromisoformat(row[3]),
+        }
+
+    async def cleanup_access_logs(self, older_than: datetime) -> int:
+        """Delete access logs older than specified datetime.
+
+        Args:
+            older_than: Delete logs before this time
+
+        Returns:
+            Number of deleted entries
+        """
+        cursor = await self.db.execute(
+            "DELETE FROM memory_access_log WHERE accessed_at < ?",
+            (older_than.isoformat(),),
+        )
+        await self.db.commit()
+        return cursor.rowcount
+
+    async def keyword_search(
+        self,
+        query: str,
+        top_k: int,
+        memory_tier: MemoryTier | None = None,
+        tags: list[str] | None = None,
+        content_type: str | None = None,
+    ) -> list[tuple[str, float]]:
+        """Perform FTS5 keyword search.
+
+        Args:
+            query: Tokenized search query
+            top_k: Maximum results
+            memory_tier: Optional tier filter
+            tags: Optional tags filter
+            content_type: Optional content type filter
+
+        Returns:
+            List of (memory_id, bm25_score) tuples
+        """
+        # Build WHERE clause and parameters using safe construction
+        # Always include base join condition (use content_id from FTS table)
+        where_clauses = ["mf.content_id = m.id"]
+        filter_params: list[Any] = []
+
+        if memory_tier:
+            where_clauses.append("m.memory_tier = ?")
+            # Handle both Enum and string values
+            tier_value = (
+                memory_tier.value if isinstance(memory_tier, MemoryTier) else memory_tier
+            )
+            filter_params.append(tier_value)
+
+        if content_type:
+            where_clauses.append("m.content_type = ?")
+            filter_params.append(content_type)
+
+        if tags:
+            for tag in tags:
+                where_clauses.append(
+                    "EXISTS (SELECT 1 FROM json_each(m.tags) WHERE value = ?)"
+                )
+                filter_params.append(tag)
+
+        where_clause = " AND ".join(where_clauses)
+
+        # Perform FTS5 search with fully parameterized query
+        cursor = await self.db.execute(
+            f"""
+            SELECT
+                m.id,
+                bm25(memories_fts) as score
+            FROM memories_fts mf
+            JOIN memories m ON {where_clause}
+            WHERE mf.content MATCH ?
+            ORDER BY score
+            LIMIT ?
+            """,
+            tuple(filter_params + [query, top_k]),
+        )
+
+        rows = await cursor.fetchall()
+        return [(row[0], float(row[1])) for row in rows]
+
+    async def hybrid_search(
+        self,
+        query: str,
+        embedding: list[float],
+        top_k: int,
+        keyword_weight: float = 0.3,
+        memory_tier: MemoryTier | None = None,
+        tags: list[str] | None = None,
+        content_type: str | None = None,
+    ) -> list[SearchResult]:
+        """Perform hybrid search (semantic + keyword).
+
+        Args:
+            query: Search query text
+            embedding: Query embedding vector
+            top_k: Maximum results
+            keyword_weight: Weight for keyword scores in combination
+            memory_tier: Optional tier filter
+            tags: Optional tags filter
+            content_type: Optional content type filter
+
+        Returns:
+            List of SearchResult with combined scores
+        """
+        from llm_memory.utils.rrf import reciprocal_rank_fusion
+
+        # Perform semantic search
+        semantic_results = await self.vector_search(
+            embedding=embedding,
+            top_k=top_k * 2,
+            memory_tier=memory_tier,
+            tags=tags,
+            content_type=content_type,
+        )
+
+        # Perform keyword search
+        keyword_tuples = await self.keyword_search(
+            query=query,
+            top_k=top_k * 2,
+            memory_tier=memory_tier,
+            tags=tags,
+            content_type=content_type,
+        )
+
+        # Convert to format for RRF
+        semantic_tuples = [(r.memory.id, r.similarity) for r in semantic_results]
+
+        # Combine using RRF
+        combined = reciprocal_rank_fusion(semantic_tuples, keyword_tuples)
+
+        # Get top_k results and fetch full memory objects
+        results = []
+        for memory_id, rrf_score in combined[:top_k]:
+            # Find memory in semantic results
+            memory_obj = None
+            semantic_score = 0.0
+            for sr in semantic_results:
+                if sr.memory.id == memory_id:
+                    memory_obj = sr.memory
+                    semantic_score = sr.similarity
+                    break
+
+            # If not in semantic, fetch it
+            if memory_obj is None:
+                memory_obj = await self.find_by_id(memory_id)
+                if memory_obj is None:
+                    continue
+
+            # Find keyword score
+            keyword_score = 0.0
+            for kid, kscore in keyword_tuples:
+                if kid == memory_id:
+                    keyword_score = abs(kscore)  # BM25 can be negative
+                    break
+
+            results.append(
+                SearchResult(
+                    memory=memory_obj,
+                    similarity=semantic_score,
+                    keyword_score=keyword_score,
+                    combined_score=rrf_score,
+                )
+            )
+
+        return results

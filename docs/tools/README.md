@@ -1,21 +1,26 @@
 # LLM Memory MCP Tools Reference
 
-LLM Memoryは14個のMCPツールを提供し、LLMに永続メモリ、ナレッジベース、エージェント間通信機能を付与します。
+LLM Memoryは19個のMCPツールを提供し、LLMに永続メモリ、ナレッジベース、エージェント間通信機能を付与します。
 
 ## ツール一覧
 
-### Memory Management（6ツール）
+### Memory Management（11ツール）
 
 メモリの保存、検索、更新、削除を行うツール群です。
 
 | ツール | 説明 | ドキュメント |
 |--------|------|-------------|
 | `memory_store` | メモリを保存（埋め込み自動生成） | [詳細](memory-tools.md#memory_store) |
-| `memory_search` | セマンティック類似性検索 | [詳細](memory-tools.md#memory_search) |
+| `memory_search` | セマンティック/キーワード/ハイブリッド検索 | [詳細](memory-tools.md#memory_search) |
 | `memory_get` | IDでメモリを取得 | [詳細](memory-tools.md#memory_get) |
 | `memory_update` | メモリを更新 | [詳細](memory-tools.md#memory_update) |
 | `memory_delete` | メモリを削除 | [詳細](memory-tools.md#memory_delete) |
 | `memory_list` | フィルタリングでリスト | [詳細](memory-tools.md#memory_list) |
+| `memory_batch_store` | 複数メモリを一括保存（最大100件） | [詳細](memory-tools.md#memory_batch_store) |
+| `memory_batch_update` | 複数メモリを一括更新 | [詳細](memory-tools.md#memory_batch_update) |
+| `memory_get_score` | 重要度スコアを取得 | [詳細](memory-tools.md#memory_get_score) |
+| `memory_set_score` | 重要度スコアを手動設定 | [詳細](memory-tools.md#memory_set_score) |
+| `memory_consolidate` | 関連メモリを統合・要約 | [詳細](memory-tools.md#memory_consolidate) |
 
 詳細: [Memory Tools](memory-tools.md)
 
@@ -114,16 +119,17 @@ context_share(
 │                     MCP Tools Layer                         │
 ├─────────────────┬─────────────────┬─────────────────────────┤
 │  Memory Tools   │ Knowledge Tools │    Agent Tools          │
-│    (6 tools)    │   (2 tools)     │     (6 tools)           │
+│   (11 tools)    │   (2 tools)     │     (6 tools)           │
 ├─────────────────┴─────────────────┴─────────────────────────┤
 │                    Services Layer                            │
-│  MemoryService  │ KnowledgeService│   AgentService          │
+│  MemoryService  │ ImportanceService │ ConsolidationService  │
+│  TokenizationService │ KnowledgeService │ AgentService      │
 ├─────────────────┴─────────────────┴─────────────────────────┤
 │                   Repository Layer                           │
-│  MemoryRepo     │ KnowledgeRepo   │   AgentRepo             │
+│  MemoryRepo (+ FTS5, Hybrid Search) │ KnowledgeRepo │AgentRepo│
 ├─────────────────┴─────────────────┴─────────────────────────┤
 │                    Database Layer                            │
-│              SQLite + sqlite-vec (Vector Search)             │
+│         SQLite + sqlite-vec + FTS5 (Vector + Keyword)        │
 └─────────────────────────────────────────────────────────────┘
 ```
 

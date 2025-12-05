@@ -154,6 +154,9 @@ class Database:
         if current_version < 1:
             await self._migrate_v1()
 
+        if current_version < 2:
+            await self._migrate_v2()
+
     async def _migrate_v1(self) -> None:
         """Initial database schema migration."""
         async with self.transaction():
@@ -302,6 +305,92 @@ class Database:
             await self.execute(
                 "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
                 (1, datetime.now(timezone.utc).isoformat()),
+            )
+
+    async def _migrate_v2(self) -> None:
+        """v1.1.0 feature migration (v1 -> v2)."""
+        async with self.transaction():
+            # 1. Add importance scoring columns to memories
+            await self.execute("""
+                ALTER TABLE memories
+                ADD COLUMN importance_score FLOAT DEFAULT 0.5
+            """)
+
+            await self.execute("""
+                ALTER TABLE memories
+                ADD COLUMN access_count INTEGER DEFAULT 0
+            """)
+
+            await self.execute("""
+                ALTER TABLE memories
+                ADD COLUMN last_accessed_at DATETIME
+            """)
+
+            # 2. Add consolidation column
+            await self.execute("""
+                ALTER TABLE memories
+                ADD COLUMN consolidated_from TEXT DEFAULT NULL
+            """)
+
+            # 3. Create access log table
+            await self.execute("""
+                CREATE TABLE memory_access_log (
+                    id TEXT PRIMARY KEY,
+                    memory_id TEXT NOT NULL,
+                    accessed_at DATETIME NOT NULL,
+                    access_type TEXT NOT NULL,
+                    FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+                )
+            """)
+
+            await self.execute("""
+                CREATE INDEX idx_access_log_memory
+                ON memory_access_log(memory_id, accessed_at DESC)
+            """)
+
+            # 4. Create FTS5 table
+            await self.execute("""
+                CREATE VIRTUAL TABLE memories_fts USING fts5(
+                    content,
+                    content_id UNINDEXED,
+                    tokenize='unicode61'
+                )
+            """)
+
+            # 5. Populate FTS5 from existing memories
+            await self.execute("""
+                INSERT INTO memories_fts (content, content_id)
+                SELECT content, id FROM memories
+            """)
+
+            # 6. Create FTS5 sync triggers
+            await self.execute("""
+                CREATE TRIGGER memories_fts_insert AFTER INSERT ON memories
+                BEGIN
+                    INSERT INTO memories_fts (content, content_id)
+                    VALUES (NEW.content, NEW.id);
+                END
+            """)
+
+            await self.execute("""
+                CREATE TRIGGER memories_fts_update AFTER UPDATE OF content ON memories
+                BEGIN
+                    UPDATE memories_fts SET content = NEW.content
+                    WHERE content_id = NEW.id;
+                END
+            """)
+
+            await self.execute("""
+                CREATE TRIGGER memories_fts_delete AFTER DELETE ON memories
+                BEGIN
+                    DELETE FROM memories_fts WHERE content_id = OLD.id;
+                END
+            """)
+
+            # 7. Record migration version
+            await self.execute(
+                "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
+                (2, datetime.now(timezone.utc).isoformat()),
             )
 
     @staticmethod

@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-12-06
+
+### Added
+
+- **Memory Consolidation** (`memory_consolidate`)
+  - Auto-summarize and merge related memories
+  - Extractive summarization algorithm
+  - Configurable preservation of original memories
+  - Tag merging from source memories
+
+- **Importance Scoring** (`memory_get_score`, `memory_set_score`)
+  - Access pattern-based importance calculation
+  - Recency + frequency scoring algorithm
+  - Manual score override with audit trail
+  - Access logging with rate limiting (60-second window)
+
+- **Hybrid Search** (enhanced `memory_search`)
+  - New `search_mode` parameter: `semantic`, `keyword`, `hybrid`
+  - FTS5 full-text search for keyword matching
+  - Reciprocal Rank Fusion (RRF) for result combining
+  - `sort_by` parameter: `relevance`, `importance`, `created_at`
+  - `keyword_weight` parameter for hybrid balance (0.0-1.0)
+
+- **Batch Operations** (`memory_batch_store`, `memory_batch_update`)
+  - Bulk store up to 100 memories in single call
+  - Bulk update with `on_error` modes: `rollback`, `continue`, `stop`
+  - Partial failure reporting
+
+- **Japanese Tokenization Support** (optional)
+  - SudachiPy morphological analysis for FTS5
+  - Install with `pip install llm-memory[japanese]`
+  - Automatic fallback to unicode61 tokenizer
+
+### Changed
+
+- Database schema upgraded to v2 (automatic migration)
+- New tables: `memories_fts`, `memory_access_log`
+- New columns: `importance_score`, `access_count`, `last_accessed_at`, `consolidated_from`
+- Tool count increased from 14 to 19
+
+### Technical Details
+
+- 54 new tests (100% pass rate)
+- Backward compatible with v1.0.0 databases
+- Performance targets: batch 100 items < 5s, hybrid search < 500ms
+
+---
+
 ## [1.0.0] - 2025-12-05
 
 First stable release with comprehensive documentation and full test coverage.
@@ -93,13 +141,6 @@ Initial public release.
 
 ## Roadmap
 
-### v1.1.0
-
-- **Memory Consolidation** - Auto-summarize related memories
-- **Importance Scoring** - Prioritize based on access patterns
-- **Hybrid Search** - Combine keyword and semantic search
-- **Batch Operations** - Bulk store/delete/update
-
 ### v1.2.0
 
 - **Memory Decay** - Gradual forgetting of unused memories
@@ -116,6 +157,7 @@ Initial public release.
 
 ---
 
-[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/VoidogStudio/llm-memory/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/VoidogStudio/llm-memory/releases/tag/v0.1.0

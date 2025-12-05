@@ -8,10 +8,15 @@ Persistent memory and knowledge management for LLMs via Model Context Protocol (
 ## Features
 
 - **Semantic Search** - Vector similarity search with sqlite-vec
+- **Hybrid Search** - Combine keyword (FTS5) and semantic search
 - **Multi-Tier Memory** - Short-term (with TTL), long-term, and working memory
+- **Importance Scoring** - Access pattern-based memory prioritization
+- **Memory Consolidation** - Auto-summarize related memories
+- **Batch Operations** - Bulk store/update up to 100 memories
 - **Knowledge Base** - Document chunking and retrieval
 - **Agent Communication** - Message passing and context sharing between agents
 - **Flexible Embeddings** - Local (Sentence Transformers) or OpenAI
+- **Japanese Support** - Optional SudachiPy tokenization for FTS5
 - **TTL Auto-Cleanup** - Automatic expiration of short-term memories
 
 ## Installation
@@ -19,9 +24,10 @@ Persistent memory and knowledge management for LLMs via Model Context Protocol (
 ```bash
 git clone https://github.com/VoidogStudio/llm-memory.git
 cd llm-memory
-pip install -e ".[local]"   # With local embeddings (recommended)
-# pip install -e ".[openai]"  # With OpenAI embeddings
-# pip install -e ".[all]"     # All features
+pip install -e ".[local]"      # With local embeddings (recommended)
+# pip install -e ".[openai]"   # With OpenAI embeddings
+# pip install -e ".[japanese]" # With Japanese tokenization (SudachiPy)
+# pip install -e ".[all]"      # All features
 ```
 
 Verify installation:
@@ -84,9 +90,9 @@ Create `.mcp.json` in your project root:
 }
 ```
 
-## MCP Tools (14)
+## MCP Tools (19)
 
-### Memory Management (6)
+### Memory Management (11)
 
 | Tool | Description |
 |------|-------------|
@@ -96,6 +102,11 @@ Create `.mcp.json` in your project root:
 | `memory_update` | Update content, tags, metadata, or tier |
 | `memory_delete` | Delete by ID, tier, or age |
 | `memory_list` | List with filtering and pagination |
+| `memory_batch_store` | Bulk store multiple memories (up to 100) |
+| `memory_batch_update` | Bulk update multiple memories |
+| `memory_get_score` | Get importance score for a memory |
+| `memory_set_score` | Manually set importance score |
+| `memory_consolidate` | Merge related memories with summarization |
 
 ### Knowledge Base (2)
 
@@ -163,6 +174,73 @@ memory_update(
 
 # Delete old memories
 memory_delete(older_than="2024-01-01T00:00:00Z")
+```
+
+### Hybrid Search (v1.1.0)
+
+```python
+# Keyword search (FTS5)
+memory_search(
+    query="dark mode settings",
+    search_mode="keyword",
+    top_k=10
+)
+
+# Hybrid search (keyword + semantic)
+memory_search(
+    query="user interface preferences",
+    search_mode="hybrid",
+    keyword_weight=0.3,  # 30% keyword, 70% semantic
+    sort_by="importance"
+)
+```
+
+### Batch Operations (v1.1.0)
+
+```python
+# Bulk store memories
+memory_batch_store(
+    items=[
+        {"content": "First memory", "tags": ["batch"]},
+        {"content": "Second memory", "tags": ["batch"]},
+        {"content": "Third memory", "tags": ["batch"]}
+    ],
+    on_error="rollback"  # or "continue", "stop"
+)
+
+# Bulk update
+memory_batch_update(
+    updates=[
+        {"id": "uuid-1", "tags": ["updated"]},
+        {"id": "uuid-2", "metadata": {"reviewed": True}}
+    ]
+)
+```
+
+### Importance Scoring (v1.1.0)
+
+```python
+# Get importance score (based on access patterns)
+memory_get_score(id="memory-uuid")
+
+# Manually set score (0.0 - 1.0)
+memory_set_score(
+    id="memory-uuid",
+    score=0.9,
+    reason="Critical user preference"
+)
+```
+
+### Memory Consolidation (v1.1.0)
+
+```python
+# Merge related memories into one
+memory_consolidate(
+    memory_ids=["uuid-1", "uuid-2", "uuid-3"],
+    summary_strategy="extractive",
+    preserve_originals=True,
+    tags=["consolidated"]
+)
 ```
 
 ### Knowledge Base

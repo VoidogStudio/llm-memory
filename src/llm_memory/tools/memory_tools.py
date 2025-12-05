@@ -91,8 +91,12 @@ async def memory_search(
     tags: list[str] | None = None,
     content_type: str | None = None,
     min_similarity: float = 0.0,
+    search_mode: str = "semantic",
+    keyword_weight: float = 0.3,
+    sort_by: str = "similarity",
+    importance_weight: float = 0.3,
 ) -> dict[str, Any]:
-    """Search memories using semantic similarity.
+    """Search memories using semantic similarity, keyword, or hybrid search.
 
     Args:
         service: Memory service instance
@@ -102,6 +106,10 @@ async def memory_search(
         tags: Filter by tags (AND condition)
         content_type: Filter by content type
         min_similarity: Minimum similarity threshold (0.0-1.0)
+        search_mode: Search mode (semantic/keyword/hybrid)
+        keyword_weight: Weight for keyword scores in hybrid mode
+        sort_by: Sort by (similarity/importance/combined)
+        importance_weight: Weight for importance in combined sort
 
     Returns:
         List of matching memories with similarity scores
@@ -120,6 +128,33 @@ async def memory_search(
             error_type="ValidationError",
         )
 
+    # search_mode validation
+    if search_mode not in ["semantic", "keyword", "hybrid"]:
+        return create_error_response(
+            message=f"Invalid search_mode: {search_mode}. Must be one of: semantic, keyword, hybrid",
+            error_type="ValidationError",
+        )
+
+    # sort_by validation
+    if sort_by not in ["similarity", "importance", "combined"]:
+        return create_error_response(
+            message=f"Invalid sort_by: {sort_by}. Must be one of: similarity, importance, combined",
+            error_type="ValidationError",
+        )
+
+    # Weight validations
+    if not 0.0 <= keyword_weight <= 1.0:
+        return create_error_response(
+            message="keyword_weight must be between 0.0 and 1.0",
+            error_type="ValidationError",
+        )
+
+    if not 0.0 <= importance_weight <= 1.0:
+        return create_error_response(
+            message="importance_weight must be between 0.0 and 1.0",
+            error_type="ValidationError",
+        )
+
     tier = MemoryTier(memory_tier) if memory_tier else None
 
     results = await service.search(
@@ -129,6 +164,10 @@ async def memory_search(
         tags=tags,
         content_type=content_type,
         min_similarity=min_similarity,
+        search_mode=search_mode,
+        keyword_weight=keyword_weight,
+        sort_by=sort_by,
+        importance_weight=importance_weight,
     )
 
     return {
@@ -137,6 +176,9 @@ async def memory_search(
                 "id": r.memory.id,
                 "content": r.memory.content,
                 "similarity": r.similarity,
+                "keyword_score": r.keyword_score,
+                "combined_score": r.combined_score,
+                "importance_score": r.memory.importance_score,
                 "memory_tier": r.memory.memory_tier.value,
                 "tags": r.memory.tags,
                 "created_at": r.memory.created_at.isoformat(),
@@ -144,6 +186,7 @@ async def memory_search(
             for r in results
         ],
         "total": len(results),
+        "search_mode": search_mode,
     }
 
 
@@ -175,6 +218,12 @@ async def memory_get(service: MemoryService, id: str) -> dict[str, Any]:
         "created_at": memory.created_at.isoformat(),
         "updated_at": memory.updated_at.isoformat(),
         "expires_at": memory.expires_at.isoformat() if memory.expires_at else None,
+        "importance_score": memory.importance_score,
+        "access_count": memory.access_count,
+        "last_accessed_at": (
+            memory.last_accessed_at.isoformat() if memory.last_accessed_at else None
+        ),
+        "consolidated_from": memory.consolidated_from,
     }
 
 
