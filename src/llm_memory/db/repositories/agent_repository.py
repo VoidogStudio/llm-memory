@@ -119,42 +119,32 @@ class AgentRepository:
 
         Args:
             agent_id: Agent ID
-            status: Filter by message status
+            status: Filter by message status (None for all messages)
             limit: Maximum messages to return
 
         Returns:
             List of messages
         """
         # Build query
-        if status and status != MessageStatus.PENDING:
-            if status == MessageStatus.READ:
-                query = """
-                    SELECT * FROM messages
-                    WHERE (receiver_id = ? OR receiver_id IS NULL)
-                    AND status = ?
-                    ORDER BY created_at DESC
-                    LIMIT ?
-                """
-                params = (agent_id, status.value, limit)
-            else:
-                query = """
-                    SELECT * FROM messages
-                    WHERE (receiver_id = ? OR receiver_id IS NULL)
-                    AND status = ?
-                    ORDER BY created_at DESC
-                    LIMIT ?
-                """
-                params = (agent_id, status.value, limit)
-        else:
-            # Default to pending
+        if status is None:
+            # Get all messages regardless of status
             query = """
                 SELECT * FROM messages
                 WHERE (receiver_id = ? OR receiver_id IS NULL)
-                AND status = 'pending'
                 ORDER BY created_at DESC
                 LIMIT ?
             """
             params = (agent_id, limit)
+        else:
+            # Filter by specific status
+            query = """
+                SELECT * FROM messages
+                WHERE (receiver_id = ? OR receiver_id IS NULL)
+                AND status = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """
+            params = (agent_id, status.value, limit)
 
         cursor = await self.db.execute(query, params)
         rows = await cursor.fetchall()

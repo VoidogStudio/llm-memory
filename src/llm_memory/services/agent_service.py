@@ -1,6 +1,6 @@
 """Agent service for business logic."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from llm_memory.db.repositories.agent_repository import AgentRepository
@@ -44,12 +44,13 @@ class AgentService:
             return existing
 
         # Create new agent
+        now = datetime.now(timezone.utc)
         agent = Agent(
             id=agent_id,
             name=name,
             description=description,
-            created_at=datetime.utcnow(),
-            last_active_at=datetime.utcnow(),
+            created_at=now,
+            last_active_at=now,
         )
 
         return await self.repository.create(agent)
@@ -84,7 +85,7 @@ class AgentService:
             content=content,
             message_type=message_type,
             metadata=metadata or {},
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
 
         # Store message
@@ -98,7 +99,7 @@ class AgentService:
     async def receive_messages(
         self,
         agent_id: str,
-        status: MessageStatus = MessageStatus.PENDING,
+        status: MessageStatus | None = MessageStatus.PENDING,
         mark_as_read: bool = True,
         limit: int = 50,
     ) -> list[Message]:
@@ -106,7 +107,7 @@ class AgentService:
 
         Args:
             agent_id: Agent ID
-            status: Filter by status
+            status: Filter by status (None for all messages)
             mark_as_read: Mark messages as read
             limit: Maximum messages
 
@@ -160,8 +161,8 @@ class AgentService:
             owner_agent_id=agent_id,
             access_level=access_level,
             allowed_agents=allowed_agents or [],
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
         return await self.repository.upsert_context(context)

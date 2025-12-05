@@ -5,6 +5,7 @@ from typing import Any
 
 from llm_memory.models.memory import ContentType, MemoryTier
 from llm_memory.services.memory_service import MemoryService
+from llm_memory.tools import create_error_response
 
 
 async def memory_store(
@@ -32,10 +33,42 @@ async def memory_store(
     Returns:
         Created memory entry with id and timestamps
     """
+    # Content validation
+    if not content or not content.strip():
+        return create_error_response(
+            message="Content cannot be empty",
+            error_type="ValidationError",
+        )
+
+    # memory_tier validation
+    try:
+        tier = MemoryTier(memory_tier)
+    except ValueError:
+        return create_error_response(
+            message=f"Invalid memory_tier: {memory_tier}. Must be one of: short_term, long_term, working",
+            error_type="ValidationError",
+        )
+
+    # content_type validation
+    try:
+        ctype = ContentType(content_type)
+    except ValueError:
+        return create_error_response(
+            message=f"Invalid content_type: {content_type}. Must be one of: text, image, code, json, yaml",
+            error_type="ValidationError",
+        )
+
+    # ttl_seconds validation
+    if ttl_seconds is not None and ttl_seconds < 0:
+        return create_error_response(
+            message="ttl_seconds must be >= 0",
+            error_type="ValidationError",
+        )
+
     memory = await service.store(
         content=content,
-        content_type=ContentType(content_type),
-        memory_tier=MemoryTier(memory_tier),
+        content_type=ctype,
+        memory_tier=tier,
         tags=tags,
         metadata=metadata,
         agent_id=agent_id,
@@ -73,6 +106,20 @@ async def memory_search(
     Returns:
         List of matching memories with similarity scores
     """
+    # top_k validation
+    if top_k < 1 or top_k > 1000:
+        return create_error_response(
+            message="top_k must be between 1 and 1000",
+            error_type="ValidationError",
+        )
+
+    # min_similarity validation
+    if min_similarity < 0.0 or min_similarity > 1.0:
+        return create_error_response(
+            message="min_similarity must be between 0.0 and 1.0",
+            error_type="ValidationError",
+        )
+
     tier = MemoryTier(memory_tier) if memory_tier else None
 
     results = await service.search(
@@ -113,7 +160,10 @@ async def memory_get(service: MemoryService, id: str) -> dict[str, Any]:
     memory = await service.get(id)
 
     if not memory:
-        raise ValueError(f"Memory not found: {id}")
+        return create_error_response(
+            message=f"Memory not found: {id}",
+            error_type="NotFoundError",
+        )
 
     return {
         "id": memory.id,
@@ -156,7 +206,10 @@ async def memory_update(
     )
 
     if not memory:
-        raise ValueError(f"Memory not found: {id}")
+        return create_error_response(
+            message=f"Memory not found: {id}",
+            error_type="NotFoundError",
+        )
 
     return {"id": memory.id, "updated": True, "updated_at": memory.updated_at.isoformat()}
 

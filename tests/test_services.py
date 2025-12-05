@@ -308,7 +308,7 @@ class TestKnowledgeService:
         """Test importing a document."""
         long_content = "Python is a programming language. " * 50
 
-        result = await knowledge_service.import_document(
+        document, chunks_created = await knowledge_service.import_document(
             title="Python Guide",
             content=long_content,
             category="programming",
@@ -316,8 +316,8 @@ class TestKnowledgeService:
             chunk_overlap=50,
         )
 
-        assert result.document_id is not None
-        assert result.chunks_created > 0
+        assert document.id is not None
+        assert chunks_created > 0
 
     @pytest.mark.asyncio
     async def test_query_knowledge(self, knowledge_service: KnowledgeService):
@@ -340,13 +340,13 @@ class TestKnowledgeService:
     async def test_get_document(self, knowledge_service: KnowledgeService):
         """Test getting a document."""
         # Import document
-        result = await knowledge_service.import_document(
+        document, _ = await knowledge_service.import_document(
             title="Test Doc",
             content="Test content here.",
         )
 
         # Get document
-        doc = await knowledge_service.get_document(result.document_id)
+        doc = await knowledge_service.get_document(document.id)
 
         assert doc is not None
         assert doc.title == "Test Doc"
@@ -355,16 +355,16 @@ class TestKnowledgeService:
     async def test_delete_document(self, knowledge_service: KnowledgeService):
         """Test deleting a document."""
         # Import document
-        result = await knowledge_service.import_document(
+        document, _ = await knowledge_service.import_document(
             title="To Delete",
             content="This will be deleted.",
         )
 
         # Delete document
-        deleted = await knowledge_service.delete_document(result.document_id)
+        deleted = await knowledge_service.delete_document(document.id)
 
         assert deleted is True
 
         # Verify deletion
-        doc = await knowledge_service.get_document(result.document_id)
+        doc = await knowledge_service.get_document(document.id)
         assert doc is None

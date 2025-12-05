@@ -1,6 +1,6 @@
 [project]
 name = "llm-memory"
-version = "0.1.0"
+version = "1.0.0"
 description = "LLM Multimodal Persistent Memory Storage - MCP Server"
 readme = "README.md"
 license = { text = "MIT" }

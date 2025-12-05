@@ -1,9 +1,24 @@
 """Entry point for llm-memory MCP server."""
 
+import argparse
 import asyncio
 
 from llm_memory.config.settings import Settings
 from llm_memory.server import create_server, initialize_services, shutdown_services
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        prog="llm-memory",
+        description="LLM Memory - Persistent memory and knowledge management for LLMs via MCP",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s 1.0.0",
+    )
+    return parser.parse_args()
 
 
 async def main() -> None:
@@ -28,6 +43,10 @@ async def main() -> None:
 
 def cli() -> None:
     """CLI entry point."""
+    # Parse args first (handles --help and --version)
+    parse_args()
+
+    # Run the MCP server
     asyncio.run(main())
 
 

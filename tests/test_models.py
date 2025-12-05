@@ -1,13 +1,24 @@
 """Tests for data models."""
 
-import uuid
 from datetime import datetime, timezone
 
-import pytest
-
-from llm_memory.models.agent import AccessLevel, Agent, Message, MessageStatus, MessageType, SharedContext
+from llm_memory.models.agent import (
+    AccessLevel,
+    Agent,
+    Message,
+    MessageStatus,
+    MessageType,
+    SharedContext,
+)
 from llm_memory.models.knowledge import Chunk, Document
-from llm_memory.models.memory import ContentType, Memory, MemoryCreate, MemoryTier, MemoryUpdate, SearchResult
+from llm_memory.models.memory import (
+    ContentType,
+    Memory,
+    MemoryCreate,
+    MemoryTier,
+    MemoryUpdate,
+    SearchResult,
+)
 
 
 class TestMemoryModels:

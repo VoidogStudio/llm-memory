@@ -7,9 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2025-12-05
+
+First stable release with comprehensive documentation and full test coverage.
+
+### Added
+
+- **Complete API Documentation** - Detailed docs for all 14 MCP tools
+  - [Tools Reference](docs/tools/README.md)
+  - [Memory Tools](docs/tools/memory-tools.md)
+  - [Knowledge Tools](docs/tools/knowledge-tools.md)
+  - [Agent Tools](docs/tools/agent-tools.md)
+
+- **Full Verification Test Suite** - `tests/test_full_flow.py`
+  - 19 comprehensive tests covering all tools
+  - Cross-tool integration tests
+  - Complete workflow simulation
+  - TTL and cleanup verification
+
+### Changed
+
+- Enhanced README with comprehensive usage examples
+- Improved configuration documentation
+- Added architecture and content type documentation
+
+### Fixed
+
+- TTL auto-cleanup now runs reliably in background
+- Datetime handling unified to UTC timezone
+- Improved error messages with consistent format
+
+---
+
 ## [0.1.0] - 2025-12-05
 
-First public release.
+Initial public release.
 
 ### Added
 
@@ -55,34 +87,35 @@ First public release.
 
 - Recommended max: 100,000 memories
 - Single concurrent writer (SQLite)
-- Maximum chunk size: 2000 characters
+- Maximum chunk size: 2,000 characters
 
 ---
 
 ## Roadmap
 
-### v0.2.0
+### v1.1.0
 
-- **Memory Consolidation** - Auto-summarize related memories to reduce redundancy
-- **Importance Scoring** - Automatically prioritize memories based on access patterns
-- **Hybrid Search** - Combine keyword and semantic search for better recall
-- **Batch Operations** - Bulk store/delete/update for efficiency
+- **Memory Consolidation** - Auto-summarize related memories
+- **Importance Scoring** - Prioritize based on access patterns
+- **Hybrid Search** - Combine keyword and semantic search
+- **Batch Operations** - Bulk store/delete/update
 
-### v0.3.0
+### v1.2.0
 
-- **Memory Decay** - Gradual forgetting of unused memories to reduce noise
-- **Memory Linking** - Create associations between related memories
-- **Smart Chunking** - Context-aware document splitting (by sections, paragraphs)
-- **Export/Import** - Backup and restore memory databases
+- **Memory Decay** - Gradual forgetting of unused memories
+- **Memory Linking** - Associations between related memories
+- **Smart Chunking** - Context-aware document splitting
+- **Export/Import** - Backup and restore databases
 
-### v1.0.0
+### v2.0.0
 
-- **PostgreSQL Support** - pgvector backend for production scale
-- **Memory Encryption** - Encrypt sensitive memories at rest
-- **Multi-tenant** - Isolated memory spaces per user/session
-- **Stable API** - Production-ready with backwards compatibility
+- **PostgreSQL Support** - pgvector backend for scale
+- **Memory Encryption** - Encrypt sensitive data at rest
+- **Multi-tenant** - Isolated memory spaces per user
+- **Streaming** - Real-time memory updates
 
 ---
 
-[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/VoidogStudio/llm-memory/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/VoidogStudio/llm-memory/releases/tag/v0.1.0

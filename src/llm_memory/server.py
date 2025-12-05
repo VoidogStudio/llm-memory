@@ -1,5 +1,7 @@
 """MCP server implementation for LLM Memory."""
 
+import asyncio
+import logging
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -25,6 +27,9 @@ memory_service: MemoryService | None = None
 agent_service: AgentService | None = None
 knowledge_service: KnowledgeService | None = None
 db: Database | None = None
+
+# Background tasks
+_background_tasks: set[asyncio.Task[None]] = set()
 
 
 async def initialize_services(settings: Settings) -> None:
@@ -64,10 +69,81 @@ async def initialize_services(settings: Settings) -> None:
     knowledge_repo = KnowledgeRepository(db)
     knowledge_service = KnowledgeService(knowledge_repo, embedding_service)
 
+    # Start background tasks
+    await start_background_tasks()
+
+
+async def start_background_tasks() -> None:
+    """Start background tasks for TTL cleanup."""
+    global _background_tasks
+
+    if not memory_service:
+        logging.warning("Services not initialized, skipping background tasks")
+        return
+
+    # Create TTL cleanup task with safe callback
+    task = asyncio.create_task(_ttl_cleanup_task())
+    _background_tasks.add(task)
+
+    # Safe callback to handle race condition
+    def remove_task(t: asyncio.Task[None]) -> None:
+        try:
+            _background_tasks.discard(t)
+        except Exception:
+            pass  # Ignore errors during cleanup
+
+    task.add_done_callback(remove_task)
+
+
+async def stop_background_tasks() -> None:
+    """Stop all background tasks gracefully."""
+    global _background_tasks
+
+    if not _background_tasks:
+        return
+
+    # Cancel all tasks
+    for task in _background_tasks:
+        task.cancel()
+
+    # Wait for cancellation with timeout
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*_background_tasks, return_exceptions=True),
+            timeout=5.0,
+        )
+    except asyncio.TimeoutError:
+        logging.warning("Background tasks did not stop within timeout")
+
+
+async def _ttl_cleanup_task() -> None:
+    """Background task for TTL cleanup."""
+    settings = Settings()
+    interval = settings.cleanup_interval_seconds
+
+    while True:
+        try:
+            await asyncio.sleep(interval)
+
+            if memory_service:
+                count = await memory_service.cleanup_expired()
+                if count > 0:
+                    logging.info(f"Cleaned up {count} expired memories")
+        except asyncio.CancelledError:
+            logging.info("TTL cleanup task cancelled")
+            raise
+        except Exception as e:
+            logging.error(f"Error in TTL cleanup: {e}")
+
 
 async def shutdown_services() -> None:
     """Shutdown all services and close database."""
     global db
+
+    # Stop background tasks first
+    await stop_background_tasks()
+
+    # Close database
     if db:
         await db.close()
 

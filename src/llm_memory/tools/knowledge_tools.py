@@ -3,6 +3,7 @@
 from typing import Any
 
 from llm_memory.services.knowledge_service import KnowledgeService
+from llm_memory.tools import create_error_response
 
 
 async def knowledge_import(
@@ -30,6 +31,34 @@ async def knowledge_import(
     Returns:
         Document ID and chunk count
     """
+    # title validation
+    if not title or not title.strip():
+        return create_error_response(
+            message="title cannot be empty",
+            error_type="ValidationError",
+        )
+
+    # content validation
+    if not content or not content.strip():
+        return create_error_response(
+            message="content cannot be empty",
+            error_type="ValidationError",
+        )
+
+    # chunk_size validation
+    if chunk_size < 100 or chunk_size > 10000:
+        return create_error_response(
+            message="chunk_size must be between 100 and 10000",
+            error_type="ValidationError",
+        )
+
+    # chunk_overlap validation
+    if chunk_overlap < 0 or chunk_overlap >= chunk_size:
+        return create_error_response(
+            message="chunk_overlap must be >= 0 and < chunk_size",
+            error_type="ValidationError",
+        )
+
     document, chunk_count = await service.import_document(
         title=title,
         content=content,

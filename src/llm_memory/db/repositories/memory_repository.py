@@ -91,7 +91,7 @@ class MemoryRepository:
             Updated memory or None if not found
         """
         # Whitelist of allowed columns to prevent SQL injection
-        allowed_columns = {"content", "tags", "metadata", "memory_tier"}
+        allowed_columns = {"content", "tags", "metadata", "memory_tier", "expires_at"}
 
         # Build update query
         set_clauses = []
@@ -120,6 +120,12 @@ class MemoryRepository:
                 raise ValueError("Invalid column: memory_tier")
             set_clauses.append("memory_tier = ?")
             params.append(updates["memory_tier"].value)
+
+        if "expires_at" in updates:
+            if "expires_at" not in allowed_columns:
+                raise ValueError("Invalid column: expires_at")
+            set_clauses.append("expires_at = ?")
+            params.append(updates["expires_at"])
 
         if not set_clauses:
             return await self.find_by_id(memory_id)

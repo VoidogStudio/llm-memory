@@ -4,6 +4,7 @@ from typing import Any
 
 from llm_memory.models.agent import AccessLevel, MessageStatus, MessageType
 from llm_memory.services.agent_service import AgentService
+from llm_memory.tools import create_error_response
 
 
 async def agent_register(
@@ -23,6 +24,20 @@ async def agent_register(
     Returns:
         Registered agent info
     """
+    # agent_id validation
+    if not agent_id or not agent_id.strip():
+        return create_error_response(
+            message="agent_id cannot be empty",
+            error_type="ValidationError",
+        )
+
+    # name validation
+    if not name or not name.strip():
+        return create_error_response(
+            message="name cannot be empty",
+            error_type="ValidationError",
+        )
+
     agent = await service.register(agent_id=agent_id, name=name, description=description)
 
     return {
@@ -50,7 +65,10 @@ async def agent_get(
     agent = await service.repository.find_by_id(agent_id)
 
     if not agent:
-        raise ValueError(f"Agent not found: {agent_id}")
+        return create_error_response(
+            message=f"Agent not found: {agent_id}",
+            error_type="NotFoundError",
+        )
 
     return {
         "id": agent.id,
@@ -82,6 +100,21 @@ async def agent_send_message(
     Returns:
         Sent message ID and timestamp
     """
+    # message_type validation
+    valid_types = ["direct", "broadcast", "context"]
+    if message_type not in valid_types:
+        return create_error_response(
+            message=f"Invalid message_type: {message_type}. Must be one of: {', '.join(valid_types)}",
+            error_type="ValidationError",
+        )
+
+    # content validation
+    if not content or not content.strip():
+        return create_error_response(
+            message="content cannot be empty",
+            error_type="ValidationError",
+        )
+
     message = await service.send_message(
         sender_id=sender_id,
         content=content,
@@ -112,7 +145,8 @@ async def agent_receive_messages(
     Returns:
         List of messages
     """
-    msg_status = MessageStatus(status) if status != "all" else MessageStatus.PENDING
+    # Convert 'all' to None to get all messages
+    msg_status = None if status == "all" else MessageStatus(status)
 
     messages = await service.receive_messages(
         agent_id=agent_id, status=msg_status, mark_as_read=mark_as_read, limit=limit
@@ -179,7 +213,10 @@ async def context_read(service: AgentService, key: str, agent_id: str) -> dict[s
     context = await service.read_context(key=key, agent_id=agent_id)
 
     if not context:
-        raise ValueError(f"Context not found or access denied: {key}")
+        return create_error_response(
+            message=f"Context not found or access denied: {key}",
+            error_type="NotFoundError",
+        )
 
     return {
         "key": context.key,

@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     short_term_ttl_seconds: int = Field(
         default=3600, description="Default TTL for short-term memories (seconds)"
     )
+    cleanup_interval_seconds: int = Field(
+        default=300,
+        ge=60,
+        description="TTL cleanup interval in seconds (minimum 60)",
+    )
 
     # Performance
     embedding_batch_size: int = Field(
