@@ -1,0 +1,329 @@
+"""Database connection and migration management."""
+
+import json
+import sqlite3
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+import aiosqlite
+import sqlite_vec
+
+# Check if SQLite supports extension loading
+# Apple's SQLite on some systems is built with OMIT_LOAD_EXTENSION
+_SQLITE_SUPPORTS_EXTENSIONS = hasattr(sqlite3.Connection, 'enable_load_extension')
+
+if not _SQLITE_SUPPORTS_EXTENSIONS:
+    # Try to use pysqlite3 which is built against Homebrew SQLite
+    try:
+        import pysqlite3.dbapi2
+        # Replace sqlite3 module globally for aiosqlite
+        aiosqlite.core.sqlite3 = pysqlite3.dbapi2
+        # Also update Row references for compatibility
+        import sys
+        sys.modules['sqlite3'] = pysqlite3.dbapi2
+        _SQLITE_SUPPORTS_EXTENSIONS = True
+    except ImportError as e:
+        raise RuntimeError(
+            "SQLite does not support extension loading. "
+            "On macOS with Python 3.14+, install pysqlite3: "
+            "LDFLAGS='-L/opt/homebrew/opt/sqlite/lib' "
+            "CPPFLAGS='-I/opt/homebrew/opt/sqlite/include' pip install pysqlite3"
+        ) from e
+
+
+class Database:
+    """Database connection and operations manager."""
+
+    def __init__(self, database_path: str, embedding_dimensions: int = 384) -> None:
+        """Initialize database manager.
+
+        Args:
+            database_path: Path to SQLite database file
+            embedding_dimensions: Dimension of embedding vectors
+        """
+        self.database_path = database_path
+        self.embedding_dimensions = embedding_dimensions
+        self.conn: aiosqlite.Connection | None = None
+
+    async def connect(self) -> None:
+        """Connect to database and load sqlite-vec extension."""
+        # Ensure data directory exists
+        db_dir = Path(self.database_path).parent
+        db_dir.mkdir(parents=True, exist_ok=True)
+
+        # Connect to database
+        self.conn = await aiosqlite.connect(self.database_path)
+        # Use the sqlite3 module's Row factory (works with both stdlib and pysqlite3)
+        self.conn.row_factory = aiosqlite.core.sqlite3.Row
+
+        # Enable load_extension and load sqlite-vec
+        await self.conn.enable_load_extension(True)
+
+        # Load sqlite-vec in aiosqlite's internal thread to avoid threading issues.
+        # aiosqlite runs sqlite operations in a separate thread, so we must use
+        # _execute() to run sqlite_vec.load() in that same thread context.
+        # Note: _execute() is a semi-private API but is the only way to ensure
+        # thread-safe extension loading with aiosqlite.
+        def _load_sqlite_vec(connection: object) -> None:
+            sqlite_vec.load(connection)  # type: ignore[arg-type]
+
+        await self.conn._execute(_load_sqlite_vec, self.conn._conn)
+
+        await self.conn.enable_load_extension(False)
+
+        # Enable foreign keys
+        await self.conn.execute("PRAGMA foreign_keys = ON")
+
+    async def close(self) -> None:
+        """Close database connection."""
+        if self.conn:
+            await self.conn.close()
+            self.conn = None
+
+    async def execute(
+        self, sql: str, parameters: tuple[Any, ...] | dict[str, Any] = ()
+    ) -> aiosqlite.Cursor:
+        """Execute a SQL statement.
+
+        Args:
+            sql: SQL statement
+            parameters: Query parameters
+
+        Returns:
+            Database cursor
+        """
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+        return await self.conn.execute(sql, parameters)
+
+    async def executemany(self, sql: str, parameters: list[tuple[Any, ...]]) -> None:
+        """Execute a SQL statement with multiple parameter sets.
+
+        Args:
+            sql: SQL statement
+            parameters: List of parameter tuples
+        """
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+        await self.conn.executemany(sql, parameters)
+
+    async def commit(self) -> None:
+        """Commit current transaction."""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+        await self.conn.commit()
+
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator[None]:
+        """Context manager for database transactions.
+
+        Yields:
+            None
+
+        Example:
+            async with db.transaction():
+                await db.execute(...)
+        """
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+
+        await self.conn.execute("BEGIN")
+        try:
+            yield
+            await self.conn.commit()
+        except Exception:
+            await self.conn.rollback()
+            raise
+
+    async def migrate(self) -> None:
+        """Run database migrations."""
+        # Check current schema version
+        try:
+            cursor = await self.execute(
+                "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1"
+            )
+            row = await cursor.fetchone()
+            current_version = row[0] if row else 0
+        except (aiosqlite.OperationalError, aiosqlite.core.sqlite3.OperationalError):
+            current_version = 0
+
+        # Run migrations if needed
+        if current_version < 1:
+            await self._migrate_v1()
+
+    async def _migrate_v1(self) -> None:
+        """Initial database schema migration."""
+        async with self.transaction():
+            # Create schema_version table
+            await self.execute("""
+                CREATE TABLE IF NOT EXISTS schema_version (
+                    version INTEGER PRIMARY KEY,
+                    applied_at DATETIME NOT NULL
+                )
+            """)
+
+            # Create agents table
+            await self.execute("""
+                CREATE TABLE IF NOT EXISTS agents (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    metadata TEXT DEFAULT '{}',
+                    created_at DATETIME NOT NULL,
+                    last_active_at DATETIME NOT NULL
+                )
+            """)
+
+            # Create memories table
+            await self.execute("""
+                CREATE TABLE IF NOT EXISTS memories (
+                    id TEXT PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    content_type TEXT NOT NULL DEFAULT 'text',
+                    memory_tier TEXT NOT NULL DEFAULT 'long_term',
+                    tags TEXT DEFAULT '[]',
+                    metadata TEXT DEFAULT '{}',
+                    agent_id TEXT,
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL,
+                    expires_at DATETIME,
+                    FOREIGN KEY (agent_id) REFERENCES agents(id)
+                )
+            """)
+
+            # Create indexes for memories
+            await self.execute(
+                "CREATE INDEX IF NOT EXISTS idx_memories_tier ON memories(memory_tier)"
+            )
+            await self.execute(
+                "CREATE INDEX IF NOT EXISTS idx_memories_agent ON memories(agent_id)"
+            )
+            await self.execute(
+                "CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC)"
+            )
+            await self.execute(
+                "CREATE INDEX IF NOT EXISTS idx_memories_expires ON memories(expires_at) "
+                "WHERE expires_at IS NOT NULL"
+            )
+
+            # Create embeddings virtual table
+            await self.execute(f"""
+                CREATE VIRTUAL TABLE IF NOT EXISTS embeddings USING vec0(
+                    memory_id TEXT PRIMARY KEY,
+                    embedding FLOAT[{self.embedding_dimensions}]
+                )
+            """)
+
+            # Create messages table
+            await self.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id TEXT PRIMARY KEY,
+                    sender_id TEXT NOT NULL,
+                    receiver_id TEXT,
+                    content TEXT NOT NULL,
+                    message_type TEXT NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    metadata TEXT DEFAULT '{}',
+                    created_at DATETIME NOT NULL,
+                    read_at DATETIME,
+                    FOREIGN KEY (sender_id) REFERENCES agents(id),
+                    FOREIGN KEY (receiver_id) REFERENCES agents(id)
+                )
+            """)
+
+            # Create indexes for messages
+            await self.execute(
+                "CREATE INDEX IF NOT EXISTS idx_messages_receiver "
+                "ON messages(receiver_id, status)"
+            )
+            await self.execute(
+                "CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id)"
+            )
+
+            # Create shared_contexts table
+            await self.execute("""
+                CREATE TABLE IF NOT EXISTS shared_contexts (
+                    id TEXT PRIMARY KEY,
+                    key TEXT UNIQUE NOT NULL,
+                    value TEXT NOT NULL,
+                    owner_agent_id TEXT NOT NULL,
+                    access_level TEXT DEFAULT 'public',
+                    allowed_agents TEXT DEFAULT '[]',
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL,
+                    FOREIGN KEY (owner_agent_id) REFERENCES agents(id)
+                )
+            """)
+
+            # Create knowledge_documents table
+            await self.execute("""
+                CREATE TABLE IF NOT EXISTS knowledge_documents (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    source TEXT,
+                    category TEXT,
+                    version INTEGER DEFAULT 1,
+                    metadata TEXT DEFAULT '{}',
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL
+                )
+            """)
+
+            # Create knowledge_chunks table
+            await self.execute("""
+                CREATE TABLE IF NOT EXISTS knowledge_chunks (
+                    id TEXT PRIMARY KEY,
+                    document_id TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    chunk_index INTEGER NOT NULL,
+                    metadata TEXT DEFAULT '{}',
+                    FOREIGN KEY (document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
+                )
+            """)
+
+            # Create index for chunks
+            await self.execute(
+                "CREATE INDEX IF NOT EXISTS idx_chunks_document "
+                "ON knowledge_chunks(document_id, chunk_index)"
+            )
+
+            # Create chunk_embeddings virtual table
+            await self.execute(f"""
+                CREATE VIRTUAL TABLE IF NOT EXISTS chunk_embeddings USING vec0(
+                    chunk_id TEXT PRIMARY KEY,
+                    embedding FLOAT[{self.embedding_dimensions}]
+                )
+            """)
+
+            # Record migration
+            await self.execute(
+                "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
+                (1, datetime.now(timezone.utc).isoformat()),
+            )
+
+    @staticmethod
+    def serialize_json(data: Any) -> str:
+        """Serialize data to JSON string.
+
+        Args:
+            data: Data to serialize
+
+        Returns:
+            JSON string
+        """
+        return json.dumps(data, ensure_ascii=False)
+
+    @staticmethod
+    def deserialize_json(data: str) -> Any:
+        """Deserialize JSON string to data.
+
+        Args:
+            data: JSON string
+
+        Returns:
+            Deserialized data
+        """
+        return json.loads(data) if data else {}
