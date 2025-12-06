@@ -31,8 +31,11 @@ from llm_memory.db.repositories.knowledge_repository import KnowledgeRepository
 from llm_memory.db.repositories.memory_repository import MemoryRepository
 from llm_memory.embeddings.base import EmbeddingProvider
 from llm_memory.services.agent_service import AgentService
+from llm_memory.services.decay_service import DecayService
 from llm_memory.services.embedding_service import EmbeddingService
+from llm_memory.services.export_import_service import ExportImportService
 from llm_memory.services.knowledge_service import KnowledgeService
+from llm_memory.services.linking_service import LinkingService
 from llm_memory.services.memory_service import MemoryService
 
 
@@ -156,6 +159,41 @@ async def knowledge_service(
     """Knowledge service."""
     return KnowledgeService(
         repository=knowledge_repository, embedding_service=embedding_service
+    )
+
+
+@pytest_asyncio.fixture
+async def decay_service(memory_db: Database, memory_repository: MemoryRepository) -> DecayService:
+    """Decay service."""
+    return DecayService(repository=memory_repository, db=memory_db)
+
+
+@pytest_asyncio.fixture
+async def linking_service(
+    memory_db: Database, memory_repository: MemoryRepository
+) -> LinkingService:
+    """Linking service."""
+    return LinkingService(repository=memory_repository, db=memory_db)
+
+
+@pytest_asyncio.fixture
+async def export_import_service(
+    memory_db: Database,
+    memory_repository: MemoryRepository,
+    knowledge_repository: KnowledgeRepository,
+    agent_repository: AgentRepository,
+    embedding_service: EmbeddingService,
+) -> ExportImportService:
+    """Export/Import service."""
+    from pathlib import Path
+
+    return ExportImportService(
+        memory_repository=memory_repository,
+        knowledge_repository=knowledge_repository,
+        agent_repository=agent_repository,
+        db=memory_db,
+        embedding_service=embedding_service,
+        allowed_paths=[Path(tempfile.gettempdir())],
     )
 
 

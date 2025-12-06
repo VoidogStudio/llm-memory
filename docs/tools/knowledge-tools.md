@@ -1,33 +1,33 @@
 # Knowledge Tools
 
-Knowledge Toolsは、ドキュメントをチャンク分割してインポートし、セマンティック検索でクエリするためのツール群です。
+Knowledge Tools are a set of tools for importing documents with chunking and querying them with semantic search.
 
-## 概要
+## Overview
 
-| ツール | 説明 |
-|--------|------|
-| `knowledge_import` | ドキュメントをチャンク分割してインポート |
-| `knowledge_query` | セマンティック検索でクエリ |
+| Tool | Description |
+|------|-------------|
+| `knowledge_import` | Import document with chunking |
+| `knowledge_query` | Query with semantic search |
 
 ---
 
 ## knowledge_import
 
-ドキュメントをナレッジベースにインポートします。コンテンツは自動的にチャンク分割され、各チャンクに埋め込みベクトルが生成されます。
+Imports a document into the knowledge base. Content is automatically chunked and embedding vectors are generated for each chunk.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `title` | string | Yes | - | ドキュメントタイトル |
-| `content` | string | Yes | - | ドキュメント全文 |
-| `source` | string | No | `null` | ソースURLまたはファイルパス |
-| `category` | string | No | `null` | 分類カテゴリ |
-| `chunk_size` | integer | No | `500` | チャンクあたりの文字数 |
-| `chunk_overlap` | integer | No | `50` | チャンク間のオーバーラップ文字数 |
-| `metadata` | object | No | `{}` | 追加メタデータ |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `title` | string | Yes | - | Document title |
+| `content` | string | Yes | - | Full document content |
+| `source` | string | No | `null` | Source URL or file path |
+| `category` | string | No | `null` | Classification category |
+| `chunk_size` | integer | No | `500` | Characters per chunk |
+| `chunk_overlap` | integer | No | `50` | Overlap characters between chunks |
+| `metadata` | object | No | `{}` | Additional metadata |
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -38,7 +38,7 @@ Knowledge Toolsは、ドキュメントをチャンク分割してインポー�
 }
 ```
 
-### 使用例
+### Example
 
 ```python
 knowledge_import(
@@ -51,25 +51,25 @@ knowledge_import(
 )
 ```
 
-### バリデーション
+### Validation
 
-- `title` は空にできません
-- `content` は空にできません
-- `chunk_size` は 100〜10000 の範囲
-- `chunk_overlap` は 0 以上かつ `chunk_size` 未満
+- `title` cannot be empty
+- `content` cannot be empty
+- `chunk_size` must be in range 100-10000
+- `chunk_overlap` must be 0 or greater and less than `chunk_size`
 
-### チャンク分割の仕組み
+### How Chunking Works
 
-1. ドキュメントは `chunk_size` 文字ごとに分割されます
-2. 各チャンクは `chunk_overlap` 文字分だけ前のチャンクと重複します
-3. 重複により文脈の連続性が維持されます
+1. Document is split every `chunk_size` characters
+2. Each chunk overlaps with the previous chunk by `chunk_overlap` characters
+3. Overlap maintains context continuity
 
 ```
 Document: [AAAAAABBBBBBCCCCCC]
 
 chunk_size=6, chunk_overlap=2:
   Chunk 1: [AAAAAA]
-  Chunk 2:   [AABBBB]  (2文字のオーバーラップ)
+  Chunk 2:   [AABBBB]  (2 character overlap)
   Chunk 3:       [BBCCCC]
 ```
 
@@ -77,19 +77,19 @@ chunk_size=6, chunk_overlap=2:
 
 ## knowledge_query
 
-ナレッジベースをセマンティック検索でクエリします。
+Query the knowledge base with semantic search.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `query` | string | Yes | - | 検索クエリ |
-| `top_k` | integer | No | `5` | 返すチャンク数 |
-| `category` | string | No | `null` | カテゴリでフィルタ |
-| `document_id` | string | No | `null` | ドキュメントIDでフィルタ |
-| `include_document_info` | boolean | No | `true` | ドキュメントメタデータを含める |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `query` | string | Yes | - | Search query |
+| `top_k` | integer | No | `5` | Number of chunks to return |
+| `category` | string | No | `null` | Filter by category |
+| `document_id` | string | No | `null` | Filter by document ID |
+| `include_document_info` | boolean | No | `true` | Include document metadata |
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -109,20 +109,20 @@ chunk_size=6, chunk_overlap=2:
 }
 ```
 
-### 使用例
+### Examples
 
 ```python
-# 基本的なクエリ
+# Basic query
 knowledge_query(query="authentication methods")
 
-# カテゴリでフィルタ
+# Filter by category
 knowledge_query(
     query="error handling",
     category="documentation",
     top_k=10
 )
 
-# 特定ドキュメント内を検索
+# Search within specific document
 knowledge_query(
     query="rate limiting",
     document_id="550e8400-e29b-41d4-a716-446655440000",
@@ -132,12 +132,12 @@ knowledge_query(
 
 ---
 
-## ユースケース
+## Use Cases
 
-### ドキュメント検索システム
+### Document Search System
 
 ```python
-# 複数のドキュメントをインポート
+# Import multiple documents
 knowledge_import(
     title="Getting Started Guide",
     content=getting_started_content,
@@ -150,14 +150,14 @@ knowledge_import(
     category="reference"
 )
 
-# ユーザーの質問に基づいて検索
+# Search based on user question
 results = knowledge_query(
     query="How do I authenticate API requests?",
     top_k=3
 )
 ```
 
-### コードベースのドキュメント化
+### Codebase Documentation
 
 ```python
 knowledge_import(
@@ -165,52 +165,52 @@ knowledge_import(
     content=source_code,
     source="/src/auth/auth_module.py",
     category="source_code",
-    chunk_size=300,  # コードは小さめのチャンクが有効
+    chunk_size=300,  # Smaller chunks work better for code
     chunk_overlap=30
 )
 ```
 
-### FAQシステム
+### FAQ System
 
 ```python
-# FAQ全体をインポート
+# Import entire FAQ
 knowledge_import(
     title="FAQ",
     content=faq_content,
     category="faq",
-    chunk_size=200,  # 各FAQエントリが1チャンクになるように
+    chunk_size=200,  # Each FAQ entry becomes one chunk
     chunk_overlap=0
 )
 
-# 質問に関連するFAQを検索
+# Search for relevant FAQ
 knowledge_query(query="how to reset password", category="faq")
 ```
 
 ---
 
-## 推奨設定
+## Recommended Settings
 
-### チャンクサイズの目安
+### Chunk Size Guidelines
 
-| コンテンツタイプ | chunk_size | chunk_overlap | 理由 |
-|-----------------|------------|---------------|------|
-| 一般的なドキュメント | 500 | 50 | 標準的なバランス |
-| 技術文書 | 800 | 100 | 長いコードブロック対応 |
-| FAQ | 200 | 0 | 各項目を独立させる |
-| ソースコード | 300 | 30 | 関数単位に近い粒度 |
-| 長文記事 | 1000 | 150 | 文脈の連続性重視 |
-
----
-
-## 制限事項
-
-- 推奨最大チャンクサイズ: 2000文字
-- 1ドキュメントあたりの推奨最大チャンク数: 1000
-- インポート時に埋め込み生成のため、大きなドキュメントは処理に時間がかかる場合があります
+| Content Type | chunk_size | chunk_overlap | Reason |
+|--------------|------------|---------------|--------|
+| General documents | 500 | 50 | Standard balance |
+| Technical docs | 800 | 100 | Long code blocks support |
+| FAQ | 200 | 0 | Keep each item independent |
+| Source code | 300 | 30 | Near function-level granularity |
+| Long articles | 1000 | 150 | Context continuity priority |
 
 ---
 
-## エラーレスポンス
+## Limitations
+
+- Recommended max chunk size: 2000 characters
+- Recommended max chunks per document: 1000
+- Large documents may take time to process due to embedding generation
+
+---
+
+## Error Response
 
 ```json
 {
@@ -220,6 +220,6 @@ knowledge_query(query="how to reset password", category="faq")
 }
 ```
 
-### エラータイプ
+### Error Types
 
-- `ValidationError` - 入力バリデーションエラー
+- `ValidationError` - Input validation error

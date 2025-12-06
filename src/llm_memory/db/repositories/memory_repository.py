@@ -195,23 +195,33 @@ class MemoryRepository:
         )
         await self.db.commit()
 
-    async def delete(self, memory_id: str) -> bool:
+    async def delete(self, memory_id: str, use_transaction: bool = True) -> bool:
         """Delete memory by ID.
 
         Args:
             memory_id: Memory ID
+            use_transaction: Whether to wrap in transaction (default True)
 
         Returns:
             True if deleted, False if not found
         """
-        async with self.db.transaction():
+        if use_transaction:
+            async with self.db.transaction():
+                # Delete embedding first
+                await self.db.execute("DELETE FROM embeddings WHERE memory_id = ?", (memory_id,))
+
+                # Delete memory
+                cursor = await self.db.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+
+            return cursor.rowcount > 0
+        else:
             # Delete embedding first
             await self.db.execute("DELETE FROM embeddings WHERE memory_id = ?", (memory_id,))
 
             # Delete memory
             cursor = await self.db.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
 
-        return cursor.rowcount > 0
+            return cursor.rowcount > 0
 
     async def delete_many(
         self,
@@ -403,7 +413,7 @@ class MemoryRepository:
             f"""
             SELECT
                 m.*,
-                1 - distance as similarity
+                MAX(0, 1 - distance) as similarity
             FROM (
                 SELECT embedding, memory_id, distance
                 FROM embeddings

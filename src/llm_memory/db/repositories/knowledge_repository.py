@@ -72,14 +72,20 @@ class KnowledgeRepository:
                     chunk.content,
                     chunk.chunk_index,
                     json.dumps(chunk.metadata),
+                    json.dumps(chunk.section_path),
+                    1 if chunk.has_previous else 0,
+                    1 if chunk.has_next else 0,
                 )
                 for chunk in chunks
             ]
 
             await self.db.executemany(
                 """
-                INSERT INTO knowledge_chunks (id, document_id, content, chunk_index, metadata)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO knowledge_chunks (
+                    id, document_id, content, chunk_index, metadata,
+                    section_path, has_previous, has_next
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 chunk_params,
             )
@@ -204,7 +210,7 @@ class KnowledgeRepository:
                 d.metadata as doc_metadata,
                 d.created_at as doc_created_at,
                 d.updated_at as doc_updated_at,
-                1 - distance as similarity
+                MAX(0, 1 - distance) as similarity
             FROM (
                 SELECT embedding, chunk_id, distance
                 FROM chunk_embeddings
@@ -223,26 +229,31 @@ class KnowledgeRepository:
 
         results = []
         for row in rows:
+            # Convert Row to dict to use .get() method
+            row_dict = dict(row)
             chunk = Chunk(
-                id=row["id"],
-                document_id=row["document_id"],
-                content=row["content"],
-                chunk_index=row["chunk_index"],
-                metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+                id=row_dict["id"],
+                document_id=row_dict["document_id"],
+                content=row_dict["content"],
+                chunk_index=row_dict["chunk_index"],
+                metadata=json.loads(row_dict["metadata"]) if row_dict["metadata"] else {},
+                section_path=json.loads(row_dict["section_path"]) if row_dict.get("section_path") else [],
+                has_previous=bool(row_dict.get("has_previous", 0)),
+                has_next=bool(row_dict.get("has_next", 0)),
             )
 
             document = Document(
-                id=row["doc_id"],
-                title=row["doc_title"],
-                source=row["doc_source"],
-                category=row["doc_category"],
-                version=row["doc_version"],
-                metadata=json.loads(row["doc_metadata"]) if row["doc_metadata"] else {},
-                created_at=datetime.fromisoformat(row["doc_created_at"]),
-                updated_at=datetime.fromisoformat(row["doc_updated_at"]),
+                id=row_dict["doc_id"],
+                title=row_dict["doc_title"],
+                source=row_dict["doc_source"],
+                category=row_dict["doc_category"],
+                version=row_dict["doc_version"],
+                metadata=json.loads(row_dict["doc_metadata"]) if row_dict["doc_metadata"] else {},
+                created_at=datetime.fromisoformat(row_dict["doc_created_at"]),
+                updated_at=datetime.fromisoformat(row_dict["doc_updated_at"]),
             )
 
-            similarity = float(row["similarity"])
+            similarity = float(row_dict["similarity"])
 
             results.append(ChunkResult(chunk=chunk, document=document, similarity=similarity))
 
@@ -257,13 +268,14 @@ class KnowledgeRepository:
         Returns:
             Document object
         """
+        row_dict = dict(row)
         return Document(
-            id=row["id"],
-            title=row["title"],
-            source=row["source"],
-            category=row["category"],
-            version=row["version"],
-            metadata=json.loads(row["metadata"]) if row["metadata"] else {},
-            created_at=datetime.fromisoformat(row["created_at"]),
-            updated_at=datetime.fromisoformat(row["updated_at"]),
+            id=row_dict["id"],
+            title=row_dict["title"],
+            source=row_dict["source"],
+            category=row_dict["category"],
+            version=row_dict["version"],
+            metadata=json.loads(row_dict["metadata"]) if row_dict["metadata"] else {},
+            created_at=datetime.fromisoformat(row_dict["created_at"]),
+            updated_at=datetime.fromisoformat(row_dict["updated_at"]),
         )

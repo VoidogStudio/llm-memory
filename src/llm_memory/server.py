@@ -15,16 +15,22 @@ from llm_memory.embeddings.local import LocalEmbeddingProvider
 from llm_memory.embeddings.openai import OpenAIEmbeddingProvider
 from llm_memory.services.agent_service import AgentService
 from llm_memory.services.consolidation_service import ConsolidationService
+from llm_memory.services.decay_service import DecayService
 from llm_memory.services.embedding_service import EmbeddingService
+from llm_memory.services.export_import_service import ExportImportService
 from llm_memory.services.importance_service import ImportanceService
 from llm_memory.services.knowledge_service import KnowledgeService
+from llm_memory.services.linking_service import LinkingService
 from llm_memory.services.memory_service import MemoryService
 from llm_memory.tools import (
     agent_tools,
     batch_tools,
     consolidation_tools,
+    decay_tools,
+    export_import_tools,
     importance_tools,
     knowledge_tools,
+    linking_tools,
     memory_tools,
 )
 
@@ -37,6 +43,9 @@ agent_service: AgentService | None = None
 knowledge_service: KnowledgeService | None = None
 importance_service: ImportanceService | None = None
 consolidation_service: ConsolidationService | None = None
+decay_service: DecayService | None = None
+linking_service: LinkingService | None = None
+export_import_service: ExportImportService | None = None
 db: Database | None = None
 
 # Background tasks
@@ -49,7 +58,7 @@ async def initialize_services(settings: Settings) -> None:
     Args:
         settings: Application settings
     """
-    global memory_service, agent_service, knowledge_service, importance_service, consolidation_service, db
+    global memory_service, agent_service, knowledge_service, importance_service, consolidation_service, decay_service, linking_service, export_import_service, db
 
     # Initialize database
     db = Database(settings.database_path, settings.embedding_dimensions)
@@ -82,6 +91,9 @@ async def initialize_services(settings: Settings) -> None:
 
     importance_service = ImportanceService(memory_repo)
     consolidation_service = ConsolidationService(memory_repo, embedding_service)
+    decay_service = DecayService(memory_repo, db)
+    linking_service = LinkingService(memory_repo, db)
+    export_import_service = ExportImportService(memory_repo, knowledge_repo, agent_repo, db, embedding_service)
 
     # Start background tasks
     await start_background_tasks()
@@ -603,6 +615,190 @@ async def memory_consolidate(
     return await consolidation_tools.memory_consolidate(
         consolidation_service, memory_ids, summary_strategy, preserve_originals, tags, metadata
     )
+
+
+# Decay Tools
+@mcp.tool()
+async def memory_decay_configure(
+    enabled: bool | None = None,
+    threshold: float | None = None,
+    grace_period_days: int | None = None,
+    auto_run_interval_hours: int | None = None,
+    max_delete_per_run: int | None = None,
+) -> dict[str, Any]:
+    """Configure memory decay settings.
+
+    Args:
+        enabled: Enable/disable decay
+        threshold: Importance score threshold (0.0-1.0)
+        grace_period_days: Days before deletion eligible (min: 1)
+        auto_run_interval_hours: Auto-run interval (reserved for future)
+        max_delete_per_run: Maximum deletions per run (1-10000)
+
+    Returns:
+        Updated configuration
+    """
+    if not decay_service:
+        raise RuntimeError("Services not initialized")
+    return await decay_tools.memory_decay_configure(
+        decay_service, enabled, threshold, grace_period_days, auto_run_interval_hours, max_delete_per_run
+    )
+
+
+@mcp.tool()
+async def memory_decay_run(
+    threshold: float | None = None,
+    grace_period_days: int | None = None,
+    dry_run: bool = False,
+    max_delete: int | None = None,
+) -> dict[str, Any]:
+    """Run memory decay to delete low-importance memories.
+
+    Args:
+        threshold: Override importance threshold
+        grace_period_days: Override grace period
+        dry_run: If True, only preview without deleting
+        max_delete: Override maximum deletions
+
+    Returns:
+        Deletion results with affected IDs
+    """
+    if not decay_service:
+        raise RuntimeError("Services not initialized")
+    return await decay_tools.memory_decay_run(decay_service, threshold, grace_period_days, dry_run, max_delete)
+
+
+@mcp.tool()
+async def memory_decay_status() -> dict[str, Any]:
+    """Get current decay status and statistics.
+
+    Returns:
+        Configuration and statistics
+    """
+    if not decay_service:
+        raise RuntimeError("Services not initialized")
+    return await decay_tools.memory_decay_status(decay_service)
+
+
+# Linking Tools
+@mcp.tool()
+async def memory_link(
+    source_id: str,
+    target_id: str,
+    link_type: str = "related",
+    bidirectional: bool = True,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Create a link between two memories.
+
+    Args:
+        source_id: Source memory ID
+        target_id: Target memory ID
+        link_type: Link type (related/parent/child/similar/reference)
+        bidirectional: Create reverse link automatically
+        metadata: Optional link metadata
+
+    Returns:
+        Created link information
+    """
+    if not linking_service:
+        raise RuntimeError("Services not initialized")
+    return await linking_tools.memory_link(linking_service, source_id, target_id, link_type, bidirectional, metadata)
+
+
+@mcp.tool()
+async def memory_unlink(
+    source_id: str,
+    target_id: str,
+    link_type: str | None = None,
+) -> dict[str, Any]:
+    """Remove link(s) between two memories.
+
+    Args:
+        source_id: Source memory ID
+        target_id: Target memory ID
+        link_type: Specific type to remove (None = all)
+
+    Returns:
+        Deletion count
+    """
+    if not linking_service:
+        raise RuntimeError("Services not initialized")
+    return await linking_tools.memory_unlink(linking_service, source_id, target_id, link_type)
+
+
+@mcp.tool()
+async def memory_get_links(
+    memory_id: str,
+    link_type: str | None = None,
+    direction: str = "both",
+) -> dict[str, Any]:
+    """Get links for a memory.
+
+    Args:
+        memory_id: Memory ID
+        link_type: Filter by link type
+        direction: Direction filter (outgoing/incoming/both)
+
+    Returns:
+        List of links
+    """
+    if not linking_service:
+        raise RuntimeError("Services not initialized")
+    return await linking_tools.memory_get_links(linking_service, memory_id, link_type, direction)
+
+
+# Export/Import Tools
+@mcp.tool()
+async def database_export(
+    output_path: str | None = None,
+    include_embeddings: bool = True,
+    memory_tier: str | None = None,
+    created_after: str | None = None,
+    created_before: str | None = None,
+    format: str = "jsonl",
+) -> dict[str, Any]:
+    """Export database to file.
+
+    Args:
+        output_path: Output file path (required)
+        include_embeddings: Include embedding vectors
+        memory_tier: Filter by memory tier
+        created_after: Filter by creation date (ISO format)
+        created_before: Filter by creation date (ISO format)
+        format: Output format (jsonl)
+
+    Returns:
+        Export results and statistics
+    """
+    if not export_import_service:
+        raise RuntimeError("Services not initialized")
+    return await export_import_tools.database_export(
+        export_import_service, output_path, include_embeddings, memory_tier, created_after, created_before, format
+    )
+
+
+@mcp.tool()
+async def database_import(
+    input_path: str,
+    mode: str = "merge",
+    on_conflict: str = "skip",
+    regenerate_embeddings: bool = False,
+) -> dict[str, Any]:
+    """Import database from file.
+
+    Args:
+        input_path: Input file path
+        mode: Import mode (replace/merge)
+        on_conflict: Conflict handling (skip/update/error)
+        regenerate_embeddings: Regenerate embeddings from content
+
+    Returns:
+        Import results and statistics
+    """
+    if not export_import_service:
+        raise RuntimeError("Services not initialized")
+    return await export_import_tools.database_import(export_import_service, input_path, mode, on_conflict, regenerate_embeddings)
 
 
 def create_server() -> FastMCP:

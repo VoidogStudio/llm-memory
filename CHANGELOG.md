@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-12-06
+
+### Added
+
+- **Memory Decay** (`memory_decay_configure`, `memory_decay_run`, `memory_decay_status`)
+  - Gradual forgetting of unused/low-importance memories
+  - Configurable decay threshold and grace period
+  - Dry-run mode for safe preview before deletion
+  - Automatic decay logging with statistics
+
+- **Memory Linking** (`memory_link`, `memory_unlink`, `memory_get_links`)
+  - Create associations between related memories
+  - Bidirectional links with automatic reverse creation
+  - Link types: `related`, `parent`, `child`, `similar`, `reference`
+  - Query links by direction (outgoing/incoming/both)
+
+- **Smart Chunking** (enhanced `knowledge_import`)
+  - Context-aware document splitting strategies
+  - New `strategy` parameter: `fixed`, `sentence`, `paragraph`, `semantic`
+  - Hierarchical section path tracking (markdown headers)
+  - Previous/next chunk navigation metadata
+
+- **Export/Import** (`database_export`, `database_import`)
+  - Full database backup in JSONL format
+  - Selective export with tier/date filters
+  - Import modes: `replace` (full restore) or `merge` (incremental)
+  - Conflict handling: `skip`, `update`, or `error`
+  - Optional embedding regeneration on import
+
+### Changed
+
+- Database schema upgraded to v3 (automatic migration from v2)
+- New tables: `memory_links`, `decay_config`, `decay_log`
+- New columns in `knowledge_chunks`: `section_path`, `has_previous`, `has_next`
+- Tool count increased from 19 to 27
+
+### Technical Details
+
+- 192 total tests (190 pass, 2 performance tests skipped)
+- Backward compatible with v1.1.0 databases
+- All v1.2.0 features available via MCP tools
+
+---
+
 ## [1.1.0] - 2025-12-06
 
 ### Added
@@ -141,13 +185,6 @@ Initial public release.
 
 ## Roadmap
 
-### v1.2.0
-
-- **Memory Decay** - Gradual forgetting of unused memories
-- **Memory Linking** - Associations between related memories
-- **Smart Chunking** - Context-aware document splitting
-- **Export/Import** - Backup and restore databases
-
 ### v2.0.0
 
 - **PostgreSQL Support** - pgvector backend for scale
@@ -157,7 +194,8 @@ Initial public release.
 
 ---
 
-[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/VoidogStudio/llm-memory/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/VoidogStudio/llm-memory/releases/tag/v0.1.0

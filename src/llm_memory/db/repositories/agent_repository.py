@@ -260,13 +260,14 @@ class AgentRepository:
         Returns:
             Agent object
         """
+        row_dict = dict(row)
         return Agent(
-            id=row["id"],
-            name=row["name"],
-            description=row["description"],
-            metadata=json.loads(row["metadata"]) if row["metadata"] else {},
-            created_at=datetime.fromisoformat(row["created_at"]),
-            last_active_at=datetime.fromisoformat(row["last_active_at"]),
+            id=row_dict["id"],
+            name=row_dict["name"],
+            description=row_dict["description"],
+            metadata=json.loads(row_dict["metadata"]) if row_dict["metadata"] else {},
+            created_at=datetime.fromisoformat(row_dict["created_at"]),
+            last_active_at=datetime.fromisoformat(row_dict["last_active_at"]),
         )
 
     def _row_to_message(self, row: Any) -> Message:
@@ -278,16 +279,17 @@ class AgentRepository:
         Returns:
             Message object
         """
+        row_dict = dict(row)
         return Message(
-            id=row["id"],
-            sender_id=row["sender_id"],
-            receiver_id=row["receiver_id"],
-            content=row["content"],
-            message_type=MessageType(row["message_type"]),
-            status=MessageStatus(row["status"]),
-            metadata=json.loads(row["metadata"]) if row["metadata"] else {},
-            created_at=datetime.fromisoformat(row["created_at"]),
-            read_at=datetime.fromisoformat(row["read_at"]) if row["read_at"] else None,
+            id=row_dict["id"],
+            sender_id=row_dict["sender_id"],
+            receiver_id=row_dict["receiver_id"],
+            content=row_dict["content"],
+            message_type=MessageType(row_dict["message_type"]),
+            status=MessageStatus(row_dict["status"]),
+            metadata=json.loads(row_dict["metadata"]) if row_dict["metadata"] else {},
+            created_at=datetime.fromisoformat(row_dict["created_at"]),
+            read_at=datetime.fromisoformat(row_dict["read_at"]) if row_dict["read_at"] else None,
         )
 
     def _row_to_context(self, row: Any) -> SharedContext:
@@ -299,13 +301,14 @@ class AgentRepository:
         Returns:
             SharedContext object
         """
+        row_dict = dict(row)
         return SharedContext(
-            id=row["id"],
-            key=row["key"],
-            value=json.loads(row["value"]),
-            owner_agent_id=row["owner_agent_id"],
-            access_level=AccessLevel(row["access_level"]),
-            allowed_agents=json.loads(row["allowed_agents"]) if row["allowed_agents"] else [],
-            created_at=datetime.fromisoformat(row["created_at"]),
-            updated_at=datetime.fromisoformat(row["updated_at"]),
+            id=row_dict["id"],
+            key=row_dict["key"],
+            value=json.loads(row_dict["value"]),
+            owner_agent_id=row_dict["owner_agent_id"],
+            access_level=AccessLevel(row_dict["access_level"]),
+            allowed_agents=json.loads(row_dict["allowed_agents"]) if row_dict["allowed_agents"] else [],
+            created_at=datetime.fromisoformat(row_dict["created_at"]),
+            updated_at=datetime.fromisoformat(row_dict["updated_at"]),
         )

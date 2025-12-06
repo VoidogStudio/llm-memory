@@ -28,6 +28,9 @@ class Chunk(BaseModel):
     content: str
     chunk_index: int
     metadata: dict[str, Any] = Field(default_factory=dict)
+    section_path: list[str] = Field(default_factory=list)
+    has_previous: bool = False
+    has_next: bool = False
 
 
 class ChunkResult(BaseModel):

@@ -1,56 +1,56 @@
 # Memory Tools
 
-Memory Toolsは、LLMがセマンティック検索可能な永続メモリを管理するためのツール群です。
+Memory Tools are a set of tools for LLMs to manage searchable persistent memory with semantic search capabilities.
 
-## 概要
+## Overview
 
-| ツール | 説明 |
-|--------|------|
-| `memory_store` | メモリエントリを保存（埋め込み自動生成） |
-| `memory_search` | セマンティック/キーワード/ハイブリッド検索 |
-| `memory_get` | IDでメモリを取得 |
-| `memory_update` | メモリを更新 |
-| `memory_delete` | メモリを削除 |
-| `memory_list` | フィルタリングとページネーションでリスト |
-| `memory_batch_store` | 複数メモリを一括保存（最大100件）**v1.1.0** |
-| `memory_batch_update` | 複数メモリを一括更新 **v1.1.0** |
-| `memory_get_score` | 重要度スコアを取得 **v1.1.0** |
-| `memory_set_score` | 重要度スコアを手動設定 **v1.1.0** |
-| `memory_consolidate` | 関連メモリを統合・要約 **v1.1.0** |
+| Tool | Description |
+|------|-------------|
+| `memory_store` | Store memory entry (auto-generates embeddings) |
+| `memory_search` | Semantic/keyword/hybrid search |
+| `memory_get` | Get memory by ID |
+| `memory_update` | Update memory |
+| `memory_delete` | Delete memory |
+| `memory_list` | List with filtering and pagination |
+| `memory_batch_store` | Batch store multiple memories (max 100) **v1.1.0** |
+| `memory_batch_update` | Batch update multiple memories **v1.1.0** |
+| `memory_get_score` | Get importance score **v1.1.0** |
+| `memory_set_score` | Manually set importance score **v1.1.0** |
+| `memory_consolidate` | Consolidate and summarize related memories **v1.1.0** |
 
 ---
 
 ## memory_store
 
-メモリエントリを保存し、自動的に埋め込みベクトルを生成します。
+Stores a memory entry and automatically generates an embedding vector.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `content` | string | Yes | - | 保存するコンテンツ |
-| `content_type` | string | No | `"text"` | コンテンツタイプ |
-| `memory_tier` | string | No | `"long_term"` | メモリ階層 |
-| `tags` | string[] | No | `[]` | 分類用タグ |
-| `metadata` | object | No | `{}` | 追加メタデータ |
-| `agent_id` | string | No | `null` | エージェントID |
-| `ttl_seconds` | integer | No | `null` | 有効期限（秒） |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `content` | string | Yes | - | Content to store |
+| `content_type` | string | No | `"text"` | Content type |
+| `memory_tier` | string | No | `"long_term"` | Memory tier |
+| `tags` | string[] | No | `[]` | Classification tags |
+| `metadata` | object | No | `{}` | Additional metadata |
+| `agent_id` | string | No | `null` | Agent ID |
+| `ttl_seconds` | integer | No | `null` | Time to live (seconds) |
 
-### 列挙値
+### Enum Values
 
 **content_type:**
-- `text` - テキスト
-- `image` - 画像
-- `code` - ソースコード
+- `text` - Text
+- `image` - Image
+- `code` - Source code
 - `json` - JSON
 - `yaml` - YAML
 
 **memory_tier:**
-- `short_term` - 短期メモリ（TTL付き、自動期限切れ）
-- `long_term` - 長期メモリ（永続保存）
-- `working` - ワーキングメモリ（アクティブセッション用）
+- `short_term` - Short-term memory (with TTL, auto-expires)
+- `long_term` - Long-term memory (persistent storage)
+- `working` - Working memory (for active sessions)
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -61,7 +61,7 @@ Memory Toolsは、LLMがセマンティック検索可能な永続メモリを�
 }
 ```
 
-### 使用例
+### Example
 
 ```python
 memory_store(
@@ -72,44 +72,44 @@ memory_store(
 )
 ```
 
-### バリデーション
+### Validation
 
-- `content` は空にできません
-- `ttl_seconds` は 0 以上である必要があります
-- 無効な `memory_tier` または `content_type` はエラーを返します
+- `content` cannot be empty
+- `ttl_seconds` must be 0 or greater
+- Invalid `memory_tier` or `content_type` returns an error
 
 ---
 
 ## memory_search
 
-セマンティック、キーワード、またはハイブリッド検索でメモリを検索します。
+Search memories using semantic, keyword, or hybrid search.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `query` | string | Yes | - | 検索クエリテキスト |
-| `top_k` | integer | No | `10` | 返す最大結果数 |
-| `memory_tier` | string | No | `null` | 階層でフィルタ |
-| `tags` | string[] | No | `null` | タグでフィルタ（AND条件） |
-| `content_type` | string | No | `null` | コンテンツタイプでフィルタ |
-| `min_similarity` | float | No | `0.0` | 最小類似度閾値（0.0-1.0） |
-| `search_mode` | string | No | `"semantic"` | 検索モード **v1.1.0** |
-| `keyword_weight` | float | No | `0.3` | ハイブリッド検索でのキーワード重み **v1.1.0** |
-| `sort_by` | string | No | `"relevance"` | ソート順 **v1.1.0** |
-| `importance_weight` | float | No | `0.0` | 重要度スコアの重み付け **v1.1.0** |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `query` | string | Yes | - | Search query text |
+| `top_k` | integer | No | `10` | Maximum results to return |
+| `memory_tier` | string | No | `null` | Filter by tier |
+| `tags` | string[] | No | `null` | Filter by tags (AND condition) |
+| `content_type` | string | No | `null` | Filter by content type |
+| `min_similarity` | float | No | `0.0` | Minimum similarity threshold (0.0-1.0) |
+| `search_mode` | string | No | `"semantic"` | Search mode **v1.1.0** |
+| `keyword_weight` | float | No | `0.3` | Keyword weight in hybrid search **v1.1.0** |
+| `sort_by` | string | No | `"relevance"` | Sort order **v1.1.0** |
+| `importance_weight` | float | No | `0.0` | Importance score weight **v1.1.0** |
 
 **search_mode:**
-- `semantic` - ベクトル類似度検索（デフォルト）
-- `keyword` - FTS5キーワード検索
-- `hybrid` - キーワード+セマンティックの組み合わせ
+- `semantic` - Vector similarity search (default)
+- `keyword` - FTS5 keyword search
+- `hybrid` - Combined keyword + semantic search
 
 **sort_by:**
-- `relevance` - 関連度順（デフォルト）
-- `importance` - 重要度スコア順
-- `created_at` - 作成日時順
+- `relevance` - By relevance (default)
+- `importance` - By importance score
+- `created_at` - By creation date
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -127,7 +127,7 @@ memory_store(
 }
 ```
 
-### 使用例
+### Example
 
 ```python
 memory_search(
@@ -138,24 +138,24 @@ memory_search(
 )
 ```
 
-### バリデーション
+### Validation
 
-- `top_k` は 1〜1000 の範囲
-- `min_similarity` は 0.0〜1.0 の範囲
+- `top_k` must be in range 1-1000
+- `min_similarity` must be in range 0.0-1.0
 
 ---
 
 ## memory_get
 
-IDで特定のメモリを取得します。
+Get a specific memory by ID.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|-----|------|------|
-| `id` | string | Yes | メモリID（UUID） |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | Yes | Memory ID (UUID) |
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -171,27 +171,27 @@ IDで特定のメモリを取得します。
 }
 ```
 
-### エラー
+### Errors
 
-- `NotFoundError` - メモリが見つからない場合
+- `NotFoundError` - Memory not found
 
 ---
 
 ## memory_update
 
-既存のメモリエントリを更新します。
+Update an existing memory entry.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|-----|------|------|
-| `id` | string | Yes | 更新するメモリID |
-| `content` | string | No | 新しいコンテンツ（埋め込みを再生成） |
-| `tags` | string[] | No | 新しいタグリスト（既存を置換） |
-| `metadata` | object | No | 追加メタデータ（既存にマージ） |
-| `memory_tier` | string | No | 新しい階層（昇格/降格用） |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | Yes | Memory ID to update |
+| `content` | string | No | New content (regenerates embedding) |
+| `tags` | string[] | No | New tag list (replaces existing) |
+| `metadata` | object | No | Additional metadata (merges with existing) |
+| `memory_tier` | string | No | New tier (for promotion/demotion) |
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -201,42 +201,42 @@ IDで特定のメモリを取得します。
 }
 ```
 
-### 使用例
+### Examples
 
 ```python
-# タグを更新
+# Update tags
 memory_update(
     id="550e8400-e29b-41d4-a716-446655440000",
     tags=["preferences", "ui", "theme"]
 )
 
-# 短期から長期へ昇格
+# Promote from short-term to long-term
 memory_update(
     id="550e8400-e29b-41d4-a716-446655440000",
     memory_tier="long_term"
 )
 ```
 
-### エラー
+### Errors
 
-- `NotFoundError` - メモリが見つからない場合
+- `NotFoundError` - Memory not found
 
 ---
 
 ## memory_delete
 
-IDまたは条件でメモリを削除します。
+Delete memories by ID or conditions.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|-----|------|------|
-| `id` | string | No | 削除する単一メモリID |
-| `ids` | string[] | No | 削除するメモリIDのリスト |
-| `memory_tier` | string | No | この階層の全メモリを削除 |
-| `older_than` | string | No | この日時より古いメモリを削除（ISO形式） |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | No | Single memory ID to delete |
+| `ids` | string[] | No | List of memory IDs to delete |
+| `memory_tier` | string | No | Delete all memories in this tier |
+| `older_than` | string | No | Delete memories older than this date (ISO format) |
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -249,19 +249,19 @@ IDまたは条件でメモリを削除します。
 }
 ```
 
-### 使用例
+### Examples
 
 ```python
-# 単一削除
+# Delete single
 memory_delete(id="550e8400-e29b-41d4-a716-446655440000")
 
-# 複数削除
+# Delete multiple
 memory_delete(ids=["id1", "id2", "id3"])
 
-# 古いメモリを削除
+# Delete old memories
 memory_delete(older_than="2024-01-01T00:00:00Z")
 
-# 階層全体を削除
+# Delete entire tier
 memory_delete(memory_tier="short_term")
 ```
 
@@ -269,21 +269,21 @@ memory_delete(memory_tier="short_term")
 
 ## memory_list
 
-フィルタリングとページネーションでメモリをリストします。
+List memories with filtering and pagination.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `memory_tier` | string | No | `null` | 階層でフィルタ |
-| `tags` | string[] | No | `null` | タグでフィルタ（AND条件） |
-| `content_type` | string | No | `null` | コンテンツタイプでフィルタ |
-| `created_after` | string | No | `null` | 作成日でフィルタ（ISO形式） |
-| `created_before` | string | No | `null` | 作成日でフィルタ（ISO形式） |
-| `limit` | integer | No | `50` | 最大結果数（上限1000） |
-| `offset` | integer | No | `0` | ページネーションオフセット |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `memory_tier` | string | No | `null` | Filter by tier |
+| `tags` | string[] | No | `null` | Filter by tags (AND condition) |
+| `content_type` | string | No | `null` | Filter by content type |
+| `created_after` | string | No | `null` | Filter by creation date (ISO format) |
+| `created_before` | string | No | `null` | Filter by creation date (ISO format) |
+| `limit` | integer | No | `50` | Maximum results (max 1000) |
+| `offset` | integer | No | `0` | Pagination offset |
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -303,42 +303,42 @@ memory_delete(memory_tier="short_term")
 }
 ```
 
-### 使用例
+### Examples
 
 ```python
-# 長期メモリを取得
+# Get long-term memories
 memory_list(memory_tier="long_term", limit=20)
 
-# 特定タグでフィルタ
+# Filter by specific tags
 memory_list(tags=["preferences"], created_after="2025-01-01T00:00:00Z")
 
-# ページネーション
-memory_list(limit=50, offset=50)  # 2ページ目
+# Pagination
+memory_list(limit=50, offset=50)  # Page 2
 ```
 
 ---
 
 ## Memory Tiers
 
-### short_term（短期メモリ）
-- TTL付きで自動期限切れ
-- 一時的な情報に最適
-- `ttl_seconds` パラメータで有効期限を設定
+### short_term (Short-term Memory)
+- Auto-expires with TTL
+- Best for temporary information
+- Set expiration with `ttl_seconds` parameter
 
-### long_term（長期メモリ）
-- 永続的に保存
-- 重要な情報、ユーザー設定など
-- デフォルトの階層
+### long_term (Long-term Memory)
+- Persistent storage
+- For important information, user preferences, etc.
+- Default tier
 
-### working（ワーキングメモリ）
-- アクティブなセッションコンテキスト
-- タスク実行中の一時データ
+### working (Working Memory)
+- Active session context
+- Temporary data during task execution
 
 ---
 
-## エラーレスポンス
+## Error Response
 
-すべてのツールは統一されたエラー形式を返します：
+All tools return a unified error format:
 
 ```json
 {
@@ -348,37 +348,37 @@ memory_list(limit=50, offset=50)  # 2ページ目
 }
 ```
 
-### エラータイプ
+### Error Types
 
-- `ValidationError` - 入力バリデーションエラー
-- `NotFoundError` - リソースが見つからない
+- `ValidationError` - Input validation error
+- `NotFoundError` - Resource not found
 
 ---
 
 ## memory_batch_store (v1.1.0)
 
-複数のメモリを一括で保存します。
+Batch store multiple memories at once.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `items` | array | Yes | - | 保存するメモリのリスト（最大100件） |
-| `on_error` | string | No | `"rollback"` | エラー時の動作 |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `items` | array | Yes | - | List of memories to store (max 100) |
+| `on_error` | string | No | `"rollback"` | Error handling behavior |
 
-**items 各要素:**
-- `content` (string, 必須) - コンテンツ
-- `content_type` (string) - コンテンツタイプ
-- `memory_tier` (string) - メモリ階層
-- `tags` (string[]) - タグ
-- `metadata` (object) - メタデータ
+**items elements:**
+- `content` (string, required) - Content
+- `content_type` (string) - Content type
+- `memory_tier` (string) - Memory tier
+- `tags` (string[]) - Tags
+- `metadata` (object) - Metadata
 
 **on_error:**
-- `rollback` - エラー時に全てロールバック
-- `continue` - エラーをスキップして継続
-- `stop` - エラー時点で停止
+- `rollback` - Roll back all on error
+- `continue` - Skip errors and continue
+- `stop` - Stop at error point
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -389,7 +389,7 @@ memory_list(limit=50, offset=50)  # 2ページ目
 }
 ```
 
-### 使用例
+### Example
 
 ```python
 memory_batch_store(
@@ -406,23 +406,23 @@ memory_batch_store(
 
 ## memory_batch_update (v1.1.0)
 
-複数のメモリを一括で更新します。
+Batch update multiple memories at once.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `updates` | array | Yes | - | 更新するメモリのリスト |
-| `on_error` | string | No | `"rollback"` | エラー時の動作 |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `updates` | array | Yes | - | List of memories to update |
+| `on_error` | string | No | `"rollback"` | Error handling behavior |
 
-**updates 各要素:**
-- `id` (string, 必須) - メモリID
-- `content` (string) - 新しいコンテンツ
-- `tags` (string[]) - 新しいタグ
-- `metadata` (object) - 追加メタデータ
-- `memory_tier` (string) - 新しい階層
+**updates elements:**
+- `id` (string, required) - Memory ID
+- `content` (string) - New content
+- `tags` (string[]) - New tags
+- `metadata` (object) - Additional metadata
+- `memory_tier` (string) - New tier
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -433,7 +433,7 @@ memory_batch_store(
 }
 ```
 
-### 使用例
+### Example
 
 ```python
 memory_batch_update(
@@ -449,15 +449,15 @@ memory_batch_update(
 
 ## memory_get_score (v1.1.0)
 
-メモリの重要度スコアを取得します。スコアはアクセスパターン（頻度と最終アクセス日時）に基づいて計算されます。
+Get the importance score of a memory. Scores are calculated based on access patterns (frequency and last access time).
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|-----|------|------|
-| `id` | string | Yes | メモリID（UUID） |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | Yes | Memory ID (UUID) |
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -469,7 +469,7 @@ memory_batch_update(
 }
 ```
 
-### 使用例
+### Example
 
 ```python
 memory_get_score(id="550e8400-e29b-41d4-a716-446655440000")
@@ -479,17 +479,17 @@ memory_get_score(id="550e8400-e29b-41d4-a716-446655440000")
 
 ## memory_set_score (v1.1.0)
 
-メモリの重要度スコアを手動で設定します。
+Manually set the importance score of a memory.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `id` | string | Yes | - | メモリID（UUID） |
-| `score` | float | Yes | - | 新しいスコア（0.0〜1.0） |
-| `reason` | string | No | `"Manual override"` | 設定理由（監査用） |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `id` | string | Yes | - | Memory ID (UUID) |
+| `score` | float | Yes | - | New score (0.0-1.0) |
+| `reason` | string | No | `"Manual override"` | Reason for setting (for audit) |
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -500,7 +500,7 @@ memory_get_score(id="550e8400-e29b-41d4-a716-446655440000")
 }
 ```
 
-### 使用例
+### Example
 
 ```python
 memory_set_score(
@@ -510,31 +510,31 @@ memory_set_score(
 )
 ```
 
-### バリデーション
+### Validation
 
-- `score` は 0.0〜1.0 の範囲
-- 存在しないIDはエラー
+- `score` must be in range 0.0-1.0
+- Non-existent ID returns error
 
 ---
 
 ## memory_consolidate (v1.1.0)
 
-複数の関連メモリを1つに統合し、要約を生成します。
+Consolidate multiple related memories into one and generate a summary.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `memory_ids` | string[] | Yes | - | 統合するメモリIDのリスト（2〜50件） |
-| `summary_strategy` | string | No | `"extractive"` | 要約戦略 |
-| `preserve_originals` | boolean | No | `true` | 元のメモリを保持するか |
-| `tags` | string[] | No | `null` | 統合メモリに付与するタグ |
-| `metadata` | object | No | `null` | 統合メモリのメタデータ |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `memory_ids` | string[] | Yes | - | List of memory IDs to consolidate (2-50) |
+| `summary_strategy` | string | No | `"extractive"` | Summarization strategy |
+| `preserve_originals` | boolean | No | `true` | Whether to keep original memories |
+| `tags` | string[] | No | `null` | Tags for consolidated memory |
+| `metadata` | object | No | `null` | Metadata for consolidated memory |
 
 **summary_strategy:**
-- `extractive` - 重要な文を抽出して要約
+- `extractive` - Extract important sentences for summary
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -546,10 +546,10 @@ memory_set_score(
 }
 ```
 
-### 使用例
+### Examples
 
 ```python
-# 関連メモリを統合（元は保持）
+# Consolidate related memories (preserve originals)
 memory_consolidate(
     memory_ids=["uuid-1", "uuid-2", "uuid-3"],
     summary_strategy="extractive",
@@ -557,15 +557,15 @@ memory_consolidate(
     tags=["consolidated", "summary"]
 )
 
-# 統合して元を削除
+# Consolidate and delete originals
 memory_consolidate(
     memory_ids=["uuid-1", "uuid-2"],
     preserve_originals=False
 )
 ```
 
-### バリデーション
+### Validation
 
-- `memory_ids` は 2〜50 件
-- 存在しないIDはエラー
-- 1件のみの場合はエラー
+- `memory_ids` must have 2-50 items
+- Non-existent ID returns error
+- Single item returns error

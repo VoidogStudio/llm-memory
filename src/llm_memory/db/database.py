@@ -157,6 +157,9 @@ class Database:
         if current_version < 2:
             await self._migrate_v2()
 
+        if current_version < 3:
+            await self._migrate_v3()
+
     async def _migrate_v1(self) -> None:
         """Initial database schema migration."""
         async with self.transaction():
@@ -391,6 +394,120 @@ class Database:
             await self.execute(
                 "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
                 (2, datetime.now(timezone.utc).isoformat()),
+            )
+
+    async def _migrate_v3(self) -> None:
+        """v1.2.0 feature migration (v2 -> v3)."""
+        async with self.transaction():
+            # 1. Create memory_links table
+            await self.execute("""
+                CREATE TABLE memory_links (
+                    id TEXT PRIMARY KEY,
+                    source_id TEXT NOT NULL,
+                    target_id TEXT NOT NULL,
+                    link_type TEXT NOT NULL DEFAULT 'related',
+                    metadata TEXT DEFAULT '{}',
+                    created_at DATETIME NOT NULL,
+                    FOREIGN KEY (source_id) REFERENCES memories(id) ON DELETE CASCADE,
+                    FOREIGN KEY (target_id) REFERENCES memories(id) ON DELETE CASCADE,
+                    UNIQUE(source_id, target_id, link_type)
+                )
+            """)
+
+            # 2. Create indexes for memory_links
+            await self.execute("""
+                CREATE INDEX idx_links_source ON memory_links(source_id)
+            """)
+
+            await self.execute("""
+                CREATE INDEX idx_links_target ON memory_links(target_id)
+            """)
+
+            await self.execute("""
+                CREATE INDEX idx_links_type ON memory_links(link_type)
+            """)
+
+            # 3. Create decay_config table
+            await self.execute("""
+                CREATE TABLE decay_config (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    enabled INTEGER DEFAULT 0,
+                    threshold REAL DEFAULT 0.1,
+                    grace_period_days INTEGER DEFAULT 7,
+                    auto_run_interval_hours INTEGER DEFAULT 24,
+                    max_delete_per_run INTEGER DEFAULT 100,
+                    last_run_at DATETIME,
+                    updated_at DATETIME NOT NULL
+                )
+            """)
+
+            # 4. Create decay_log table
+            await self.execute("""
+                CREATE TABLE decay_log (
+                    id TEXT PRIMARY KEY,
+                    run_at DATETIME NOT NULL,
+                    deleted_count INTEGER NOT NULL,
+                    deleted_ids TEXT NOT NULL,
+                    threshold REAL NOT NULL,
+                    dry_run INTEGER NOT NULL
+                )
+            """)
+
+            # 5. Add smart chunking columns to knowledge_chunks
+            await self.execute("""
+                ALTER TABLE knowledge_chunks
+                ADD COLUMN section_path TEXT DEFAULT '[]'
+            """)
+
+            await self.execute("""
+                ALTER TABLE knowledge_chunks
+                ADD COLUMN has_previous INTEGER DEFAULT 0
+            """)
+
+            await self.execute("""
+                ALTER TABLE knowledge_chunks
+                ADD COLUMN has_next INTEGER DEFAULT 0
+            """)
+
+            # 6. Create performance index for decay
+            await self.execute("""
+                CREATE INDEX idx_memories_importance
+                ON memories(importance_score, created_at)
+            """)
+
+            # 7. Update messages table schema if needed (add missing columns from v1.1.0)
+            # Check if columns exist first
+            cursor = await self.execute("PRAGMA table_info(messages)")
+            columns = await cursor.fetchall()
+            column_names = [col[1] for col in columns]
+
+            if "agent_id" not in column_names:
+                await self.execute("""
+                    ALTER TABLE messages
+                    ADD COLUMN agent_id TEXT
+                """)
+
+            if "role" not in column_names:
+                await self.execute("""
+                    ALTER TABLE messages
+                    ADD COLUMN role TEXT DEFAULT 'user'
+                """)
+
+            # Add system_prompt column to agents if missing
+            cursor = await self.execute("PRAGMA table_info(agents)")
+            columns = await cursor.fetchall()
+            column_names = [col[1] for col in columns]
+
+            if "system_prompt" not in column_names:
+                await self.execute("""
+                    ALTER TABLE agents
+                    ADD COLUMN system_prompt TEXT
+                """)
+
+            # 8. Record migration version
+            await self.execute(
+                "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
+                (3, datetime.now(timezone.utc).isoformat()),
             )
 
     @staticmethod

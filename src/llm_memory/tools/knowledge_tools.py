@@ -15,6 +15,7 @@ async def knowledge_import(
     chunk_size: int = 500,
     chunk_overlap: int = 50,
     metadata: dict[str, Any] | None = None,
+    chunking_strategy: str = "sentence",
 ) -> dict[str, Any]:
     """Import a document into the knowledge base.
 
@@ -27,6 +28,7 @@ async def knowledge_import(
         chunk_size: Characters per chunk
         chunk_overlap: Overlap between chunks
         metadata: Additional metadata
+        chunking_strategy: Chunking strategy (sentence/paragraph/semantic)
 
     Returns:
         Document ID and chunk count
@@ -59,22 +61,36 @@ async def knowledge_import(
             error_type="ValidationError",
         )
 
-    document, chunk_count = await service.import_document(
-        title=title,
-        content=content,
-        source=source,
-        category=category,
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        metadata=metadata,
-    )
+    # chunking_strategy validation
+    if chunking_strategy not in ["sentence", "paragraph", "semantic"]:
+        return create_error_response(
+            message="chunking_strategy must be one of: sentence, paragraph, semantic",
+            error_type="ValidationError",
+        )
 
-    return {
-        "document_id": document.id,
-        "title": document.title,
-        "chunks_created": chunk_count,
-        "created_at": document.created_at.isoformat(),
-    }
+    try:
+        document, chunk_count = await service.import_document(
+            title=title,
+            content=content,
+            source=source,
+            category=category,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            metadata=metadata,
+            chunking_strategy=chunking_strategy,
+        )
+
+        return {
+            "document_id": document.id,
+            "title": document.title,
+            "chunks_created": chunk_count,
+            "created_at": document.created_at.isoformat(),
+        }
+    except ValueError as e:
+        return create_error_response(
+            message=str(e),
+            error_type="ValidationError",
+        )
 
 
 async def knowledge_query(

@@ -49,17 +49,17 @@ class TestHybridSearchPerformance:
         """Test Case 52: Hybrid search with 1000 memories within 500ms."""
         # Create 1000 memories
         print("\nCreating 1000 memories...")
-        items = [
-            {
-                "content": f"Test memory {i} with various content and keywords",
-                "content_type": "text",
-                "memory_tier": "long_term",
-            }
-            for i in range(1000)
-        ]
-
-        # Batch store for faster setup
-        await memory_service.batch_store(items=items)
+        # Batch store in chunks of 100 (MAX_BATCH_SIZE limit)
+        for batch_start in range(0, 1000, 100):
+            items = [
+                {
+                    "content": f"Test memory {i} with various content and keywords",
+                    "content_type": "text",
+                    "memory_tier": "long_term",
+                }
+                for i in range(batch_start, min(batch_start + 100, 1000))
+            ]
+            await memory_service.batch_store(items=items)
 
         # Perform hybrid search
         start_time = time.time()
@@ -70,7 +70,7 @@ class TestHybridSearchPerformance:
         )
         elapsed_time = time.time() - start_time
 
-        assert len(result["results"]) > 0
+        assert len(result) > 0
 
         # Performance target: < 500ms
         # Relaxed for testing environment
@@ -102,7 +102,7 @@ class TestHybridSearchPerformance:
         )
         elapsed_time = time.time() - start_time
 
-        assert len(result["results"]) > 0
+        assert len(result) > 0
 
         # Performance target: < 500ms
         print(f"Hybrid search 10,000 memories: {elapsed_time*1000:.0f}ms")
@@ -128,7 +128,7 @@ class TestConsolidationPerformance:
                 content=content,
                 content_type="text",
             )
-            memory_ids.append(memory["id"])
+            memory_ids.append(memory.id)
 
         # Consolidate
         consolidation_service = ConsolidationService(
@@ -226,15 +226,16 @@ class TestScalability:
     async def test_keyword_search_scalability(self, memory_service: MemoryService):
         """Test keyword search performance with varying data sizes."""
         # Create 500 memories
-        items = [
-            {
-                "content": f"Document {i} contains important keywords and phrases",
-                "content_type": "text",
-            }
-            for i in range(500)
-        ]
-
-        await memory_service.batch_store(items=items)
+        # Batch store in chunks of 100 (MAX_BATCH_SIZE limit)
+        for batch_start in range(0, 500, 100):
+            items = [
+                {
+                    "content": f"Document {i} contains important keywords and phrases",
+                    "content_type": "text",
+                }
+                for i in range(batch_start, min(batch_start + 100, 500))
+            ]
+            await memory_service.batch_store(items=items)
 
         # Test keyword search
         start_time = time.time()
@@ -245,7 +246,7 @@ class TestScalability:
         )
         elapsed_time = time.time() - start_time
 
-        assert len(result["results"]) > 0
+        assert len(result) > 0
 
         print(f"\nKeyword search 500 memories: {elapsed_time*1000:.0f}ms")
         # Should be very fast (< 100ms)
@@ -267,7 +268,7 @@ class TestScalability:
         )
         elapsed_time = time.time() - start_time
 
-        assert len(result["results"]) > 0
+        assert len(result) > 0
 
         print(f"\nImportance-sorted search 100 memories: {elapsed_time*1000:.0f}ms")
         # Should still be fast

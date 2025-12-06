@@ -12,6 +12,10 @@ Persistent memory and knowledge management for LLMs via Model Context Protocol (
 - **Multi-Tier Memory** - Short-term (with TTL), long-term, and working memory
 - **Importance Scoring** - Access pattern-based memory prioritization
 - **Memory Consolidation** - Auto-summarize related memories
+- **Memory Decay** - Gradual forgetting of unused memories (v1.2.0)
+- **Memory Linking** - Associations between related memories (v1.2.0)
+- **Smart Chunking** - Context-aware document splitting (v1.2.0)
+- **Export/Import** - Database backup and restore (v1.2.0)
 - **Batch Operations** - Bulk store/update up to 100 memories
 - **Knowledge Base** - Document chunking and retrieval
 - **Agent Communication** - Message passing and context sharing between agents
@@ -90,7 +94,7 @@ Create `.mcp.json` in your project root:
 }
 ```
 
-## MCP Tools (19)
+## MCP Tools (27)
 
 ### Memory Management (11)
 
@@ -108,12 +112,35 @@ Create `.mcp.json` in your project root:
 | `memory_set_score` | Manually set importance score |
 | `memory_consolidate` | Merge related memories with summarization |
 
+### Memory Decay (3) - v1.2.0
+
+| Tool | Description |
+|------|-------------|
+| `memory_decay_configure` | Configure decay settings (threshold, grace period) |
+| `memory_decay_run` | Execute decay with dry-run support |
+| `memory_decay_status` | Get decay statistics and configuration |
+
+### Memory Linking (3) - v1.2.0
+
+| Tool | Description |
+|------|-------------|
+| `memory_link` | Create bidirectional links between memories |
+| `memory_unlink` | Remove links between memories |
+| `memory_get_links` | Query links by direction and type |
+
 ### Knowledge Base (2)
 
 | Tool | Description |
 |------|-------------|
-| `knowledge_import` | Import documents with automatic chunking |
+| `knowledge_import` | Import documents with smart chunking strategies |
 | `knowledge_query` | Query with semantic search and filters |
+
+### Export/Import (2) - v1.2.0
+
+| Tool | Description |
+|------|-------------|
+| `database_export` | Export database to JSONL with filters |
+| `database_import` | Import with merge/replace modes |
 
 ### Agent Communication (6)
 
@@ -243,6 +270,100 @@ memory_consolidate(
 )
 ```
 
+### Memory Decay (v1.2.0)
+
+```python
+# Configure decay settings
+memory_decay_configure(
+    enabled=True,
+    threshold=0.1,           # Delete memories with score < 0.1
+    grace_period_days=7,     # Don't touch memories < 7 days old
+    max_delete_per_run=100
+)
+
+# Preview what would be deleted (dry run)
+memory_decay_run(dry_run=True)
+
+# Execute decay
+memory_decay_run(dry_run=False)
+
+# Check decay status
+memory_decay_status()
+```
+
+### Memory Linking (v1.2.0)
+
+```python
+# Create bidirectional link between memories
+memory_link(
+    source_id="uuid-1",
+    target_id="uuid-2",
+    link_type="related",     # related/parent/child/similar/reference
+    bidirectional=True
+)
+
+# Get all links for a memory
+memory_get_links(
+    memory_id="uuid-1",
+    direction="both"         # outgoing/incoming/both
+)
+
+# Remove link
+memory_unlink(
+    source_id="uuid-1",
+    target_id="uuid-2"
+)
+```
+
+### Smart Chunking (v1.2.0)
+
+```python
+# Import with semantic chunking
+knowledge_import(
+    title="Technical Documentation",
+    content=markdown_content,
+    strategy="semantic",     # fixed/sentence/paragraph/semantic
+    chunk_size=500
+)
+
+# Import with paragraph-based chunking
+knowledge_import(
+    title="Article",
+    content=article_text,
+    strategy="paragraph"
+)
+```
+
+### Export/Import (v1.2.0)
+
+```python
+# Export entire database
+database_export(
+    output_path="./backup.jsonl",
+    include_embeddings=True
+)
+
+# Export with filters
+database_export(
+    output_path="./long_term_backup.jsonl",
+    memory_tier="long_term",
+    created_after="2025-01-01T00:00:00Z"
+)
+
+# Import (merge mode - add new, skip existing)
+database_import(
+    input_path="./backup.jsonl",
+    mode="merge",
+    on_conflict="skip"
+)
+
+# Import (replace mode - full restore)
+database_import(
+    input_path="./backup.jsonl",
+    mode="replace"
+)
+```
+
 ### Knowledge Base
 
 ```python
@@ -330,7 +451,10 @@ context_read(key="current_task", agent_id="coder")
 
 - [Tools Reference](docs/tools/README.md)
 - [Memory Tools](docs/tools/memory-tools.md)
+- [Decay Tools](docs/tools/decay-tools.md) (v1.2.0)
+- [Linking Tools](docs/tools/linking-tools.md) (v1.2.0)
 - [Knowledge Tools](docs/tools/knowledge-tools.md)
+- [Export/Import Tools](docs/tools/export-import-tools.md) (v1.2.0)
 - [Agent Tools](docs/tools/agent-tools.md)
 
 ## Development

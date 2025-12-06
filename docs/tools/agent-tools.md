@@ -1,33 +1,33 @@
 # Agent Tools
 
-Agent Toolsは、エージェント間のメッセージパッシングとコンテキスト共有を行うためのツール群です。
+Agent Tools are a set of tools for inter-agent message passing and context sharing.
 
-## 概要
+## Overview
 
-| ツール | 説明 |
-|--------|------|
-| `agent_register` | エージェントを登録 |
-| `agent_get` | エージェント情報を取得 |
-| `agent_send_message` | メッセージを送信（ダイレクトまたはブロードキャスト） |
-| `agent_receive_messages` | メッセージを受信 |
-| `context_share` | コンテキストを共有 |
-| `context_read` | 共有コンテキストを読み取り |
+| Tool | Description |
+|------|-------------|
+| `agent_register` | Register agent |
+| `agent_get` | Get agent info |
+| `agent_send_message` | Send message (direct or broadcast) |
+| `agent_receive_messages` | Receive messages |
+| `context_share` | Share context |
+| `context_read` | Read shared context |
 
 ---
 
 ## agent_register
 
-新しいエージェントを登録するか、既存のエージェントを取得します。
+Register a new agent or retrieve an existing agent.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|-----|------|------|
-| `agent_id` | string | Yes | 一意のエージェント識別子 |
-| `name` | string | Yes | エージェントの表示名 |
-| `description` | string | No | エージェントの説明 |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `agent_id` | string | Yes | Unique agent identifier |
+| `name` | string | Yes | Agent display name |
+| `description` | string | No | Agent description |
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -39,7 +39,7 @@ Agent Toolsは、エージェント間のメッセージパッシングとコン
 }
 ```
 
-### 使用例
+### Example
 
 ```python
 agent_register(
@@ -49,24 +49,24 @@ agent_register(
 )
 ```
 
-### バリデーション
+### Validation
 
-- `agent_id` は空にできません
-- `name` は空にできません
+- `agent_id` cannot be empty
+- `name` cannot be empty
 
 ---
 
 ## agent_get
 
-IDでエージェントの情報を取得します。
+Get agent information by ID.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|-----|------|------|
-| `agent_id` | string | Yes | 取得するエージェントID |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `agent_id` | string | Yes | Agent ID to retrieve |
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -78,34 +78,35 @@ IDでエージェントの情報を取得します。
 }
 ```
 
-### エラー
+### Errors
 
-- `NotFoundError` - エージェントが見つからない場合
+- `NotFoundError` - Agent not found
 
 ---
 
 ## agent_send_message
 
-他のエージェントにメッセージを送信、またはブロードキャストします。
+Send a message to another agent or broadcast to all agents.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `sender_id` | string | Yes | - | 送信元エージェントID |
-| `content` | string | Yes | - | メッセージ内容 |
-| `receiver_id` | string | No | `null` | 宛先エージェントID（nullでブロードキャスト） |
-| `message_type` | string | No | `"direct"` | メッセージタイプ |
-| `metadata` | object | No | `null` | 追加メタデータ |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `sender_id` | string | Yes | - | Sender agent ID |
+| `content` | string | Yes | - | Message content |
+| `receiver_id` | string | No | `null` | Receiver agent ID (null for broadcast) |
+| `message_type` | string | No | `"direct"` | Message type |
+| `metadata` | object | No | `null` | Additional metadata |
 
-### 列挙値
+### Enum Values
 
 **message_type:**
-- `direct` - 特定のエージェントへの直接メッセージ
-- `broadcast` - 全エージェントへのブロードキャスト
-- `context` - コンテキスト更新通知
 
-### レスポンス
+- `direct` - Direct message to specific agent
+- `broadcast` - Broadcast to all agents
+- `context` - Context update notification
+
+### Response
 
 ```json
 {
@@ -115,10 +116,10 @@ IDでエージェントの情報を取得します。
 }
 ```
 
-### 使用例
+### Examples
 
 ```python
-# ダイレクトメッセージ
+# Direct message
 agent_send_message(
     sender_id="coder",
     receiver_id="reviewer",
@@ -126,14 +127,14 @@ agent_send_message(
     message_type="direct"
 )
 
-# ブロードキャスト
+# Broadcast
 agent_send_message(
     sender_id="director",
     content="Starting new task: implement user authentication",
     message_type="broadcast"
 )
 
-# メタデータ付き
+# With metadata
 agent_send_message(
     sender_id="coder",
     receiver_id="tester",
@@ -142,34 +143,35 @@ agent_send_message(
 )
 ```
 
-### バリデーション
+### Validation
 
-- `content` は空にできません
-- `message_type` は `direct`, `broadcast`, `context` のいずれか
+- `content` cannot be empty
+- `message_type` must be one of `direct`, `broadcast`, `context`
 
 ---
 
 ## agent_receive_messages
 
-エージェント宛のメッセージを受信します。
+Receive messages for an agent.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `agent_id` | string | Yes | - | 受信エージェントID |
-| `status` | string | No | `"pending"` | ステータスでフィルタ |
-| `mark_as_read` | boolean | No | `true` | 自動的に既読にする |
-| `limit` | integer | No | `50` | 最大メッセージ数 |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `agent_id` | string | Yes | - | Receiver agent ID |
+| `status` | string | No | `"pending"` | Filter by status |
+| `mark_as_read` | boolean | No | `true` | Auto-mark as read |
+| `limit` | integer | No | `50` | Maximum messages |
 
-### 列挙値
+### Enum Values
 
 **status:**
-- `pending` - 未読メッセージ
-- `read` - 既読メッセージ
-- `all` - すべてのメッセージ
 
-### レスポンス
+- `pending` - Unread messages
+- `read` - Read messages
+- `all` - All messages
+
+### Response
 
 ```json
 {
@@ -186,17 +188,17 @@ agent_send_message(
 }
 ```
 
-### 使用例
+### Examples
 
 ```python
-# 未読メッセージを取得して既読にする
+# Get unread messages and mark as read
 agent_receive_messages(
     agent_id="reviewer",
     status="pending",
     mark_as_read=True
 )
 
-# 全メッセージを取得（既読にしない）
+# Get all messages (don't mark as read)
 agent_receive_messages(
     agent_id="reviewer",
     status="all",
@@ -209,25 +211,26 @@ agent_receive_messages(
 
 ## context_share
 
-他のエージェントとコンテキスト値を共有します。
+Share a context value with other agents.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | デフォルト | 説明 |
-|-----------|-----|------|----------|------|
-| `key` | string | Yes | - | コンテキストキー（一意識別子） |
-| `value` | any | Yes | - | 保存する値（JSONシリアライズ可能） |
-| `agent_id` | string | Yes | - | オーナーエージェントID |
-| `access_level` | string | No | `"public"` | アクセスレベル |
-| `allowed_agents` | string[] | No | `null` | アクセス許可エージェントリスト（restricted用） |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `key` | string | Yes | - | Context key (unique identifier) |
+| `value` | any | Yes | - | Value to store (JSON serializable) |
+| `agent_id` | string | Yes | - | Owner agent ID |
+| `access_level` | string | No | `"public"` | Access level |
+| `allowed_agents` | string[] | No | `null` | Allowed agent list (for restricted) |
 
-### 列挙値
+### Enum Values
 
 **access_level:**
-- `public` - 全エージェントがアクセス可能
-- `restricted` - `allowed_agents` に指定されたエージェントのみアクセス可能
 
-### レスポンス
+- `public` - Accessible by all agents
+- `restricted` - Accessible only by agents in `allowed_agents`
+
+### Response
 
 ```json
 {
@@ -237,10 +240,10 @@ agent_receive_messages(
 }
 ```
 
-### 使用例
+### Examples
 
 ```python
-# パブリックコンテキスト
+# Public context
 context_share(
     key="current_task",
     value={"task_id": "TASK-001", "status": "in_progress"},
@@ -248,7 +251,7 @@ context_share(
     access_level="public"
 )
 
-# 制限付きコンテキスト
+# Restricted context
 context_share(
     key="sensitive_config",
     value={"api_key_hash": "abc123"},
@@ -262,16 +265,16 @@ context_share(
 
 ## context_read
 
-共有コンテキスト値を読み取ります。
+Read a shared context value.
 
-### パラメータ
+### Parameters
 
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|-----|------|------|
-| `key` | string | Yes | 読み取るコンテキストキー |
-| `agent_id` | string | Yes | 読み取りエージェントID（アクセスチェック用） |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `key` | string | Yes | Context key to read |
+| `agent_id` | string | Yes | Reading agent ID (for access check) |
 
-### レスポンス
+### Response
 
 ```json
 {
@@ -282,7 +285,7 @@ context_share(
 }
 ```
 
-### 使用例
+### Example
 
 ```python
 context_read(
@@ -291,25 +294,25 @@ context_read(
 )
 ```
 
-### エラー
+### Errors
 
-- `NotFoundError` - コンテキストが見つからない、またはアクセス拒否
+- `NotFoundError` - Context not found or access denied
 
 ---
 
-## ユースケース
+## Use Cases
 
-### マルチエージェント協調
+### Multi-Agent Collaboration
 
 ```python
-# 1. ディレクターがタスクを割り当て
+# 1. Director assigns task
 agent_send_message(
     sender_id="director",
     receiver_id="coder",
     content="Implement user authentication feature"
 )
 
-# 2. コンテキストを共有
+# 2. Share context
 context_share(
     key="task_requirements",
     value={
@@ -320,13 +323,13 @@ context_share(
     agent_id="director"
 )
 
-# 3. コーダーがメッセージを受信
+# 3. Coder receives message
 messages = agent_receive_messages(agent_id="coder")
 
-# 4. コーダーが要件を読み取り
+# 4. Coder reads requirements
 requirements = context_read(key="task_requirements", agent_id="coder")
 
-# 5. 完了通知
+# 5. Completion notification
 agent_send_message(
     sender_id="coder",
     receiver_id="reviewer",
@@ -334,17 +337,17 @@ agent_send_message(
 )
 ```
 
-### ワークフロー管理
+### Workflow Management
 
 ```python
-# ステータス更新のブロードキャスト
+# Broadcast status update
 agent_send_message(
     sender_id="director",
     message_type="broadcast",
     content="Pipeline stage: testing"
 )
 
-# 共有進捗状況
+# Share progress status
 context_share(
     key="pipeline_progress",
     value={
@@ -358,29 +361,31 @@ context_share(
 
 ---
 
-## メッセージステータスフロー
+## Message Status Flow
 
-```
+```text
 pending → read → archived
    ↓
-(mark_as_read=true で自動遷移)
+(auto-transitions with mark_as_read=true)
 ```
 
 ---
 
-## アクセス制御
+## Access Control
 
-### Public（パブリック）
-- 全エージェントがコンテキストを読み取り可能
-- デフォルトのアクセスレベル
+### Public
 
-### Restricted（制限付き）
-- `allowed_agents` に指定されたエージェントのみ読み取り可能
-- オーナーエージェントは常にアクセス可能
+- All agents can read the context
+- Default access level
+
+### Restricted
+
+- Only agents in `allowed_agents` can read
+- Owner agent always has access
 
 ---
 
-## エラーレスポンス
+## Error Response
 
 ```json
 {
@@ -390,7 +395,7 @@ pending → read → archived
 }
 ```
 
-### エラータイプ
+### Error Types
 
-- `ValidationError` - 入力バリデーションエラー
-- `NotFoundError` - リソースが見つからない、またはアクセス拒否
+- `ValidationError` - Input validation error
+- `NotFoundError` - Resource not found or access denied
