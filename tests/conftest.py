@@ -24,20 +24,20 @@ try:
 except ImportError:
     pass
 
-from llm_memory.config.settings import Settings
-from llm_memory.db.database import Database
-from llm_memory.db.repositories.agent_repository import AgentRepository
-from llm_memory.db.repositories.knowledge_repository import KnowledgeRepository
-from llm_memory.db.repositories.memory_repository import MemoryRepository
-from llm_memory.embeddings.base import EmbeddingProvider
-from llm_memory.services.agent_service import AgentService
-from llm_memory.services.decay_service import DecayService
-from llm_memory.services.embedding_service import EmbeddingService
-from llm_memory.services.export_import_service import ExportImportService
-from llm_memory.services.knowledge_service import KnowledgeService
-from llm_memory.services.linking_service import LinkingService
-from llm_memory.services.memory_service import MemoryService
-from llm_memory.services.namespace_service import NamespaceService
+from src.config.settings import Settings
+from src.db.database import Database
+from src.db.repositories.agent_repository import AgentRepository
+from src.db.repositories.knowledge_repository import KnowledgeRepository
+from src.db.repositories.memory_repository import MemoryRepository
+from src.embeddings.base import EmbeddingProvider
+from src.services.agent_service import AgentService
+from src.services.decay_service import DecayService
+from src.services.embedding_service import EmbeddingService
+from src.services.export_import_service import ExportImportService
+from src.services.knowledge_service import KnowledgeService
+from src.services.linking_service import LinkingService
+from src.services.memory_service import MemoryService
+from src.services.namespace_service import NamespaceService
 
 
 @pytest.fixture(scope="session")

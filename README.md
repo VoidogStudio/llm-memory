@@ -560,14 +560,14 @@ context_read(key="current_task", agent_id="coder")
 
 ## Documentation
 
-- [Tools Reference](docs/tools/README.md)
-- [Memory Tools](docs/tools/memory-tools.md)
-- [Decay Tools](docs/tools/decay-tools.md) (v1.2.0)
-- [Linking Tools](docs/tools/linking-tools.md) (v1.2.0)
-- [Similarity Tools](docs/tools/similarity-tools.md) (v1.4.0)
-- [Knowledge Tools](docs/tools/knowledge-tools.md)
-- [Export/Import Tools](docs/tools/export-import-tools.md) (v1.2.0)
-- [Agent Tools](docs/tools/agent-tools.md)
+- [Tools Reference](docs/tools-reference.md)
+- [Memory Tools](docs/memory-tools.md)
+- [Decay Tools](docs/decay-tools.md) (v1.2.0)
+- [Linking Tools](docs/linking-tools.md) (v1.2.0)
+- [Similarity Tools](docs/similarity-tools.md) (v1.4.0)
+- [Knowledge Tools](docs/knowledge-tools.md)
+- [Export/Import Tools](docs/export-import-tools.md) (v1.2.0)
+- [Agent Tools](docs/agent-tools.md)
 
 ## Development
 
@@ -583,7 +583,7 @@ pytest
 pytest tests/test_full_flow.py -v -s
 
 # Lint
-ruff check src/
+ruff check src
 ```
 
 ## Limitations

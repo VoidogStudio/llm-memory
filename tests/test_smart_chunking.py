@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from llm_memory.db.repositories.knowledge_repository import KnowledgeRepository
-from llm_memory.services.embedding_service import EmbeddingService
-from llm_memory.services.knowledge_service import KnowledgeService
+from src.db.repositories.knowledge_repository import KnowledgeRepository
+from src.services.embedding_service import EmbeddingService
+from src.services.knowledge_service import KnowledgeService
 
 
 @pytest.fixture

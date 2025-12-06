@@ -5,11 +5,11 @@ from datetime import datetime, timezone
 
 import pytest
 
-from llm_memory.models.memory import ContentType, MemoryTier
-from llm_memory.services.agent_service import AgentService
-from llm_memory.services.embedding_service import EmbeddingService
-from llm_memory.services.knowledge_service import KnowledgeService
-from llm_memory.services.memory_service import MemoryService
+from src.models.memory import ContentType, MemoryTier
+from src.services.agent_service import AgentService
+from src.services.embedding_service import EmbeddingService
+from src.services.knowledge_service import KnowledgeService
+from src.services.memory_service import MemoryService
 
 
 class TestEmbeddingService:

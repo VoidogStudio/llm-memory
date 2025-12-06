@@ -2,7 +2,7 @@
 
 import pytest
 
-from llm_memory.embeddings.base import EmbeddingProvider
+from src.embeddings.base import EmbeddingProvider
 
 
 class TestEmbeddingProvider:

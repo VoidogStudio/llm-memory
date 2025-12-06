@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from llm_memory.models.agent import (
+from src.models.agent import (
     AccessLevel,
     Agent,
     Message,
@@ -10,8 +10,8 @@ from llm_memory.models.agent import (
     MessageType,
     SharedContext,
 )
-from llm_memory.models.knowledge import Chunk, Document
-from llm_memory.models.memory import (
+from src.models.knowledge import Chunk, Document
+from src.models.memory import (
     ContentType,
     Memory,
     MemoryCreate,

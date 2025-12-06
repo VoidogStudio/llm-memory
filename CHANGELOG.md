@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2025-12-07
+
+### Changed
+
+- **Source Structure Simplification**
+  - Moved `src/llm_memory/` contents directly to `src/`
+  - Simplified import paths and project structure
+  - Updated pyproject.toml entry point: `src.__main__:cli`
+
+- **Documentation Structure Simplification**
+  - Moved `docs/tools/` contents directly to `docs/`
+  - Renamed `docs/tools/README.md` to `docs/tools-reference.md`
+  - Updated all internal documentation links
+
+---
+
 ## [1.4.0] - 2025-12-07
 
 ### Added
@@ -49,23 +65,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic migration preserves all existing data with default namespace
   - New databases use namespace from initial creation
 
-- **Memory Model** (`src/llm_memory/models/memory.py`)
+- **Memory Model** (`src/models/memory.py`)
   - Added `namespace` field (defaults to auto-detected value)
   - Added `SearchScope` enum: `current`, `shared`, `all`
   - Memory operations now namespace-aware
 
-- **Memory Repository** (`src/llm_memory/db/repositories/memory_repository.py`)
+- **Memory Repository** (`src/db/repositories/memory_repository.py`)
   - Added `namespace` parameter to all query methods
   - Added `search_similar()` method for similarity detection
   - Added `find_duplicates()` method using LSH index
   - Duplicate detection with configurable threshold
 
-- **Memory Tools** (`src/llm_memory/tools/memory_tools.py`)
+- **Memory Tools** (`src/tools/memory_tools.py`)
   - All memory tools now accept `namespace` parameter
   - `namespace` is auto-detected if not provided
   - Supports `shared` namespace for cross-project sharing
 
-- **Configuration** (`src/llm_memory/config/settings.py`)
+- **Configuration** (`src/config/settings.py`)
   - Added namespace-related settings:
     - `default_namespace`: Fallback namespace if not auto-detected
     - `lsh_num_functions`: Number of LSH hash functions (default 5)
@@ -127,7 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Validation Utilities** (`src/llm_memory/utils/validators.py`)
+- **Validation Utilities** (`src/utils/validators.py`)
   - `validate_uuid()` - UUID format validation
   - `validate_content()` - Content validation with size limits
   - `validate_memory_tier()` - Memory tier enum validation
@@ -348,7 +364,8 @@ Initial public release.
 
 ---
 
-[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/VoidogStudio/llm-memory/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.1.0...v1.2.0

@@ -2,9 +2,9 @@
 
 import pytest
 
-from llm_memory.exceptions import NotFoundError
-from llm_memory.services.consolidation_service import ConsolidationService
-from llm_memory.services.memory_service import MemoryService
+from src.exceptions import NotFoundError
+from src.services.consolidation_service import ConsolidationService
+from src.services.memory_service import MemoryService
 
 
 @pytest.mark.asyncio
@@ -265,7 +265,7 @@ class TestExtractiveSummarization:
 
     async def test_extractive_summary_sentence_selection(self):
         """Test Case 45: Sentence selection in extractive summary."""
-        from llm_memory.utils.summarization import extractive_summary
+        from src.utils.summarization import extractive_summary
 
         # Create text with repeated important words
         text = """
@@ -285,7 +285,7 @@ class TestExtractiveSummarization:
 
     async def test_extractive_summary_order_preserved(self):
         """Test Case 45: Original sentence order is preserved."""
-        from llm_memory.utils.summarization import extractive_summary
+        from src.utils.summarization import extractive_summary
 
         text = """First sentence. Second sentence is important and contains key terms.
         Third sentence here. Fourth sentence also has important key terms."""
@@ -298,7 +298,7 @@ class TestExtractiveSummarization:
 
     async def test_sentence_scoring(self):
         """Test Case 46: Sentence scoring based on word frequency."""
-        from llm_memory.utils.summarization import calculate_word_frequency, score_sentence
+        from src.utils.summarization import calculate_word_frequency, score_sentence
 
         text = "python programming language python code python developer"
         word_freq = calculate_word_frequency(text)

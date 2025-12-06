@@ -5,11 +5,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import pytest_asyncio
 
-from llm_memory.db.database import Database
-from llm_memory.db.repositories.memory_repository import MemoryRepository
-from llm_memory.models.memory import Memory, MemoryTier
-from llm_memory.services.decay_service import DecayService
-from llm_memory.services.embedding_service import EmbeddingService
+from src.db.database import Database
+from src.db.repositories.memory_repository import MemoryRepository
+from src.models.memory import Memory, MemoryTier
+from src.services.decay_service import DecayService
+from src.services.embedding_service import EmbeddingService
 
 
 @pytest_asyncio.fixture

@@ -2,8 +2,8 @@
 
 import pytest
 
-from llm_memory.services.memory_service import MemoryService
-from llm_memory.services.tokenization_service import TokenizationService
+from src.services.memory_service import MemoryService
+from src.services.tokenization_service import TokenizationService
 
 
 @pytest.mark.asyncio

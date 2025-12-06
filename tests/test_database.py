@@ -2,7 +2,7 @@
 
 import pytest
 
-from llm_memory.db.database import Database
+from src.db.database import Database
 
 
 class TestDatabase:

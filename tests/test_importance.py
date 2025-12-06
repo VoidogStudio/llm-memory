@@ -4,9 +4,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from llm_memory.exceptions import NotFoundError
-from llm_memory.services.importance_service import ImportanceService
-from llm_memory.services.memory_service import MemoryService
+from src.exceptions import NotFoundError
+from src.services.importance_service import ImportanceService
+from src.services.memory_service import MemoryService
 
 
 @pytest.mark.asyncio

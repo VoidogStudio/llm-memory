@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from llm_memory.models.agent import AccessLevel, MessageType
-from llm_memory.models.memory import ContentType, MemoryTier
+from src.models.agent import AccessLevel, MessageType
+from src.models.memory import ContentType, MemoryTier
 
 
 class TestMCPToolFlow:
@@ -405,7 +405,7 @@ class TestErrorHandling:
         """Test invalid memory_tier returns error."""
         from unittest.mock import MagicMock
 
-        from llm_memory.tools.memory_tools import memory_store
+        from src.tools.memory_tools import memory_store
 
         service = MagicMock()
         result = await memory_store(
@@ -422,7 +422,7 @@ class TestErrorHandling:
         """Test empty content returns error."""
         from unittest.mock import MagicMock
 
-        from llm_memory.tools.memory_tools import memory_store
+        from src.tools.memory_tools import memory_store
 
         service = MagicMock()
         result = await memory_store(
@@ -436,7 +436,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_not_found_error(self, memory_service):
         """Test not found returns error."""
-        from llm_memory.tools.memory_tools import memory_get
+        from src.tools.memory_tools import memory_get
 
         result = await memory_get(
             service=memory_service,
@@ -449,7 +449,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_error_response_structure(self):
         """Test error response structure is consistent."""
-        from llm_memory.tools import create_error_response
+        from src.tools import create_error_response
 
         result = create_error_response(
             message="Test error",

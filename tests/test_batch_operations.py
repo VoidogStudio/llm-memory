@@ -2,7 +2,7 @@
 
 import pytest
 
-from llm_memory.services.memory_service import MemoryService
+from src.services.memory_service import MemoryService
 
 
 @pytest.mark.asyncio

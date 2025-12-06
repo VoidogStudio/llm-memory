@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from llm_memory.services.memory_service import MemoryService
+from src.services.memory_service import MemoryService
 
 
 @pytest.mark.performance
@@ -118,7 +118,7 @@ class TestConsolidationPerformance:
         self, memory_service: MemoryService, memory_repository, embedding_service
     ):
         """Test Case 53: Consolidate 50 memories within 3 seconds."""
-        from llm_memory.services.consolidation_service import ConsolidationService
+        from src.services.consolidation_service import ConsolidationService
 
         # Create 50 memories with ~1000 chars each
         memory_ids = []
@@ -164,7 +164,7 @@ class TestMigrationPerformance:
         import os
         import tempfile
 
-        from llm_memory.db.database import Database
+        from src.db.database import Database
 
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name

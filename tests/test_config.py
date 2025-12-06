@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from llm_memory.config.settings import Settings
+from src.config.settings import Settings
 
 
 class TestSettings:

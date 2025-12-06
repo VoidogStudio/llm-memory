@@ -3,12 +3,12 @@
 import pytest
 import pytest_asyncio
 
-from llm_memory.db.database import Database
-from llm_memory.db.repositories.memory_repository import MemoryRepository
-from llm_memory.models.linking import LinkType
-from llm_memory.models.memory import Memory, MemoryTier
-from llm_memory.services.embedding_service import EmbeddingService
-from llm_memory.services.linking_service import LinkingService
+from src.db.database import Database
+from src.db.repositories.memory_repository import MemoryRepository
+from src.models.linking import LinkType
+from src.models.memory import Memory, MemoryTier
+from src.services.embedding_service import EmbeddingService
+from src.services.linking_service import LinkingService
 
 
 @pytest_asyncio.fixture

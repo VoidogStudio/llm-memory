@@ -8,16 +8,16 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from llm_memory.db.database import Database
-from llm_memory.db.repositories.agent_repository import AgentRepository
-from llm_memory.db.repositories.knowledge_repository import KnowledgeRepository
-from llm_memory.db.repositories.memory_repository import MemoryRepository
-from llm_memory.models.agent import Agent
-from llm_memory.models.knowledge import Document
-from llm_memory.models.memory import Memory, MemoryTier
-from llm_memory.services.embedding_service import EmbeddingService
-from llm_memory.services.export_import_service import ExportImportService
-from llm_memory.services.linking_service import LinkingService
+from src.db.database import Database
+from src.db.repositories.agent_repository import AgentRepository
+from src.db.repositories.knowledge_repository import KnowledgeRepository
+from src.db.repositories.memory_repository import MemoryRepository
+from src.models.agent import Agent
+from src.models.knowledge import Document
+from src.models.memory import Memory, MemoryTier
+from src.services.embedding_service import EmbeddingService
+from src.services.export_import_service import ExportImportService
+from src.services.linking_service import LinkingService
 
 
 @pytest_asyncio.fixture
