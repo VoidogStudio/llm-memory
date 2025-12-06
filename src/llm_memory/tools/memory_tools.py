@@ -17,6 +17,7 @@ async def memory_store(
     metadata: dict[str, Any] | None = None,
     agent_id: str | None = None,
     ttl_seconds: int | None = None,
+    namespace: str | None = None,
 ) -> dict[str, Any]:
     """Store a new memory entry with automatic embedding generation.
 
@@ -73,6 +74,7 @@ async def memory_store(
         metadata=metadata,
         agent_id=agent_id,
         ttl_seconds=ttl_seconds,
+        namespace=namespace,
     )
 
     return {
@@ -95,6 +97,8 @@ async def memory_search(
     keyword_weight: float = 0.3,
     sort_by: str = "similarity",
     importance_weight: float = 0.3,
+    namespace: str | None = None,
+    search_scope: str = "current",
 ) -> dict[str, Any]:
     """Search memories using semantic similarity, keyword, or hybrid search.
 
@@ -168,6 +172,8 @@ async def memory_search(
         keyword_weight=keyword_weight,
         sort_by=sort_by,
         importance_weight=importance_weight,
+        namespace=namespace,
+        search_scope=search_scope,
     )
 
     return {

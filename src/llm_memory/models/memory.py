@@ -45,6 +45,8 @@ class Memory(BaseModel):
     last_accessed_at: datetime | None = None
     # Memory consolidation field (FR-001)
     consolidated_from: list[str] | None = None
+    # Namespace field (v1.4.0)
+    namespace: str = Field(default="default", min_length=1, max_length=128)
 
 
 class MemoryCreate(BaseModel):

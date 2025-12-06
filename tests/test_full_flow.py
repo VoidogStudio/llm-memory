@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from llm_memory.config.settings import Settings
 from llm_memory.db.database import Database
 from llm_memory.db.repositories.agent_repository import AgentRepository
 from llm_memory.db.repositories.knowledge_repository import KnowledgeRepository
@@ -22,6 +23,7 @@ from llm_memory.services.agent_service import AgentService
 from llm_memory.services.embedding_service import EmbeddingService
 from llm_memory.services.knowledge_service import KnowledgeService
 from llm_memory.services.memory_service import MemoryService
+from llm_memory.services.namespace_service import NamespaceService
 from llm_memory.tools import agent_tools, knowledge_tools, memory_tools
 
 
@@ -59,8 +61,12 @@ async def services():
     embedding_provider = MockEmbeddingProvider(384)
     embedding_service = EmbeddingService(embedding_provider)
 
+    # Settings and namespace service
+    settings = Settings(database_path=":memory:")
+    namespace_service = NamespaceService(settings)
+
     memory_repo = MemoryRepository(db)
-    memory_service = MemoryService(memory_repo, embedding_service)
+    memory_service = MemoryService(memory_repo, embedding_service, namespace_service)
 
     agent_repo = AgentRepository(db)
     agent_service = AgentService(agent_repo)

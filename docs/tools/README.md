@@ -1,6 +1,6 @@
 # LLM Memory MCP Tools Reference
 
-LLM Memory provides 27 MCP tools that give LLMs persistent memory, knowledge base, and inter-agent communication capabilities.
+LLM Memory provides 29 MCP tools that give LLMs persistent memory, knowledge base, and inter-agent communication capabilities.
 
 ## Tool List
 
@@ -47,6 +47,17 @@ Tools for managing relationships between memories.
 | `memory_get_links` | Get links | [Details](linking-tools.md#memory_get_links) |
 
 Details: [Linking Tools](linking-tools.md)
+
+### Similarity Tools (2 tools) **v1.4.0**
+
+Tools for finding similar and duplicate memories.
+
+| Tool | Description | Documentation |
+|------|-------------|---------------|
+| `memory_similar` | Find semantically similar memories | [Details](similarity-tools.md#memory_similar) |
+| `memory_deduplicate` | Detect and merge duplicate memories | [Details](similarity-tools.md#memory_deduplicate) |
+
+Details: [Similarity Tools](similarity-tools.md)
 
 ### Knowledge Base (2 tools)
 
@@ -151,22 +162,22 @@ context_share(
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
-│                           MCP Tools Layer (27 tools)                       │
+│                           MCP Tools Layer (29 tools)                       │
 ├─────────────┬─────────────┬─────────────┬─────────────┬──────────────────┤
-│ Memory (11) │ Decay (3)   │ Linking (3) │Knowledge(2) │ Export/Import(2) │
-│             │   v1.2.0    │   v1.2.0    │             │     v1.2.0       │
+│ Memory (11) │ Decay (3)   │ Linking (3) │Similarity(2)│ Knowledge (2)    │
+│             │   v1.2.0    │   v1.2.0    │   v1.4.0    │                  │
 ├─────────────┴─────────────┴─────────────┴─────────────┴──────────────────┤
-│                            Agent Tools (6)                                │
+│               Export/Import (2) v1.2.0  │  Agent Tools (6)               │
 ├───────────────────────────────────────────────────────────────────────────┤
 │                           Services Layer                                   │
-│  MemoryService │ DecayService │ LinkingService │ ExportImportService      │
-│  ImportanceService │ ConsolidationService │ KnowledgeService │ AgentService│
+│  MemoryService │ DecayService │ LinkingService │ NamespaceService v1.4.0  │
+│  ImportanceService │ ConsolidationService │ LSHIndex v1.4.0 │ AgentService│
 ├───────────────────────────────────────────────────────────────────────────┤
 │                          Repository Layer                                  │
-│  MemoryRepo (+ FTS5, Hybrid Search) │ KnowledgeRepo │ AgentRepo           │
+│  MemoryRepo (+ FTS5, Hybrid Search, Namespace) │ KnowledgeRepo │ AgentRepo│
 ├───────────────────────────────────────────────────────────────────────────┤
 │                           Database Layer                                   │
-│      SQLite + sqlite-vec + FTS5 (Vector + Keyword) - Schema v3            │
+│      SQLite + sqlite-vec + FTS5 (Vector + Keyword) - Schema v5            │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -250,6 +261,7 @@ All tools return a unified error format:
 - [Memory Tools Details](memory-tools.md)
 - [Decay Tools Details](decay-tools.md) (v1.2.0)
 - [Linking Tools Details](linking-tools.md) (v1.2.0)
+- [Similarity Tools Details](similarity-tools.md) (v1.4.0)
 - [Knowledge Tools Details](knowledge-tools.md)
 - [Export/Import Tools Details](export-import-tools.md) (v1.2.0)
 - [Agent Tools Details](agent-tools.md)

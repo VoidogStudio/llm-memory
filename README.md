@@ -10,6 +10,11 @@ Persistent memory and knowledge management for LLMs via Model Context Protocol (
 - **Semantic Search** - Vector similarity search with sqlite-vec (cosine distance)
 - **Hybrid Search** - Combine keyword (FTS5) and semantic search
 - **Multi-Tier Memory** - Short-term (with TTL), long-term, and working memory
+- **Multi-Project Namespace** - Logical separation of memories per project (v1.4.0)
+- **Auto-detection** - Automatic namespace from git URL or directory name (v1.4.0)
+- **Cross-project Sharing** - Share knowledge via `shared` namespace (v1.4.0)
+- **Similarity Detection** - Find similar and duplicate memories (v1.4.0)
+- **LSH Index** - O(N) optimization for duplicate detection (v1.4.0)
 - **Importance Scoring** - Access pattern-based memory prioritization
 - **Memory Consolidation** - Auto-summarize related memories
 - **Memory Decay** - Gradual forgetting of unused memories (v1.2.0)
@@ -94,7 +99,7 @@ Create `.mcp.json` in your project root:
 }
 ```
 
-## MCP Tools (27)
+## MCP Tools (29)
 
 ### Memory Management (11)
 
@@ -127,6 +132,13 @@ Create `.mcp.json` in your project root:
 | `memory_link` | Create bidirectional links between memories |
 | `memory_unlink` | Remove links between memories |
 | `memory_get_links` | Query links by direction and type |
+
+### Similarity Tools (2) - v1.4.0
+
+| Tool | Description |
+|------|-------------|
+| `memory_similar` | Find semantically similar memories |
+| `memory_deduplicate` | Detect and merge duplicate memories |
 
 ### Knowledge Base (2)
 
@@ -191,6 +203,14 @@ All settings can be configured via environment variables with the `LLM_MEMORY_` 
 |----------|---------|-------------|
 | `LLM_MEMORY_CONSOLIDATION_MIN_MEMORIES` | `2` | Min memories for consolidation |
 | `LLM_MEMORY_CONSOLIDATION_MAX_MEMORIES` | `50` | Max memories per consolidation |
+
+### Namespace Settings (v1.4.0)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_MEMORY_DEFAULT_NAMESPACE` | `default` | Fallback namespace if auto-detection fails |
+| `LLM_MEMORY_LSH_NUM_FUNCTIONS` | `5` | Number of LSH hash functions |
+| `LLM_MEMORY_SIMILARITY_THRESHOLD` | `0.85` | Default similarity threshold |
 
 ## Usage Examples
 
@@ -343,6 +363,69 @@ memory_unlink(
 )
 ```
 
+### Namespace & Multi-Project (v1.4.0)
+
+```python
+# Store memory with explicit namespace
+memory_store(
+    content="Project-specific configuration",
+    namespace="my-project",
+    tags=["config"]
+)
+
+# Store to shared namespace (cross-project)
+memory_store(
+    content="Common coding guidelines",
+    namespace="shared",
+    tags=["guidelines"]
+)
+
+# Search within current namespace
+memory_search(
+    query="configuration",
+    namespace="my-project",
+    search_scope="current"
+)
+
+# Search including shared namespace
+memory_search(
+    query="guidelines",
+    search_scope="shared"  # current + shared
+)
+
+# Search across all namespaces
+memory_search(
+    query="important",
+    search_scope="all"
+)
+```
+
+### Similarity & Deduplication (v1.4.0)
+
+```python
+# Find similar memories
+memory_similar(
+    memory_id="uuid-1",
+    top_k=5,
+    min_similarity=0.85
+)
+
+# Preview duplicates (dry run)
+memory_deduplicate(
+    namespace="my-project",
+    similarity_threshold=0.95,
+    dry_run=True
+)
+
+# Merge duplicates
+memory_deduplicate(
+    namespace="my-project",
+    similarity_threshold=0.95,
+    dry_run=False,
+    merge_strategy="keep_newest"
+)
+```
+
 ### Smart Chunking (v1.2.0)
 
 ```python
@@ -481,6 +564,7 @@ context_read(key="current_task", agent_id="coder")
 - [Memory Tools](docs/tools/memory-tools.md)
 - [Decay Tools](docs/tools/decay-tools.md) (v1.2.0)
 - [Linking Tools](docs/tools/linking-tools.md) (v1.2.0)
+- [Similarity Tools](docs/tools/similarity-tools.md) (v1.4.0)
 - [Knowledge Tools](docs/tools/knowledge-tools.md)
 - [Export/Import Tools](docs/tools/export-import-tools.md) (v1.2.0)
 - [Agent Tools](docs/tools/agent-tools.md)

@@ -122,6 +122,16 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = Field(default="INFO", description="Logging level")
 
+    # Namespace settings
+    default_namespace: str | None = Field(
+        default=None,
+        description="Default namespace for memories (None = auto-detect)",
+    )
+    namespace_auto_detect: bool = Field(
+        default=True,
+        description="Enable automatic namespace detection from project context",
+    )
+
     model_config = SettingsConfigDict(
         env_prefix="LLM_MEMORY_", env_file=".env", env_file_encoding="utf-8"
     )

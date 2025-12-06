@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2025-12-07
+
+### Added
+
+- **Namespace** - Logical separation of memories per project
+  - Namespace isolation prevents cross-project contamination
+  - Each project can have isolated memory space
+  - Configurable namespace detection from git URL or directory name
+
+- **Auto-detection** - Automatic namespace from project context
+  - Detects namespace from git remote URL
+  - Falls back to directory name-based namespace
+  - Manual namespace override via `namespace` parameter
+
+- **Cross-project sharing** - Share knowledge via `shared` namespace
+  - Special `shared` namespace for common memories
+  - Memories in `shared` namespace accessible to all projects
+  - Enables knowledge reuse across project boundaries
+
+- **memory_similar** (MCP tool) - Find similar memories
+  - Detects semantically similar memories across namespace
+  - Uses configurable similarity threshold (default 0.85)
+  - Returns ordered list of similar memories with scores
+
+- **memory_deduplicate** (MCP tool) - Detect and merge duplicate memories
+  - Identifies duplicate memories using LSH index
+  - Automatic merging with tag consolidation
+  - Dry-run mode for safe preview before merge
+
+- **LSH Index** - O(N) optimization for duplicate detection
+  - Locality-Sensitive Hashing for fast similarity detection
+  - Configurable number of hash functions
+  - Significantly faster duplicate detection for large memory sets
+
+### Changed
+
+- **Database Schema v5**
+  - Added `namespace` column to `memories` table
+  - Added indexes: `idx_memories_namespace`, `idx_memories_namespace_created_at`
+  - Automatic migration preserves all existing data with default namespace
+  - New databases use namespace from initial creation
+
+- **Memory Model** (`src/llm_memory/models/memory.py`)
+  - Added `namespace` field (defaults to auto-detected value)
+  - Added `SearchScope` enum: `current`, `shared`, `all`
+  - Memory operations now namespace-aware
+
+- **Memory Repository** (`src/llm_memory/db/repositories/memory_repository.py`)
+  - Added `namespace` parameter to all query methods
+  - Added `search_similar()` method for similarity detection
+  - Added `find_duplicates()` method using LSH index
+  - Duplicate detection with configurable threshold
+
+- **Memory Tools** (`src/llm_memory/tools/memory_tools.py`)
+  - All memory tools now accept `namespace` parameter
+  - `namespace` is auto-detected if not provided
+  - Supports `shared` namespace for cross-project sharing
+
+- **Configuration** (`src/llm_memory/config/settings.py`)
+  - Added namespace-related settings:
+    - `default_namespace`: Fallback namespace if not auto-detected
+    - `lsh_num_functions`: Number of LSH hash functions (default 5)
+    - `similarity_threshold`: Threshold for memory similarity (default 0.85)
+
+### Technical Details
+
+- 193 total tests (191 pass, 2 skipped)
+- Added 3 new service modules:
+  - `NamespaceService`: Namespace detection and management
+  - `LSHIndex`: Locality-Sensitive Hashing implementation
+  - `similarity_tools`: MCP tools for similarity and deduplication
+- Backward compatible with v1.3.0 databases
+- Automatic namespace assignment to existing memories
+
+---
+
 ## [1.3.0] - 2025-12-06
 
 ### Fixed
@@ -246,14 +322,6 @@ Initial public release.
 
 ## Roadmap
 
-### v1.4.0 - Multi-Project Support
-
-- **Namespace** - Logical separation of memories per project
-- **Auto-detection** - Automatic namespace from project context
-- **Cross-project sharing** - Share common knowledge via `shared` namespace
-- **memory_similar** - Auto-detect similar memories
-- **memory_deduplicate** - Detect and merge duplicate memories
-
 ### v1.5.0 - Intelligent Context
 
 - **memory_context_build** - Build optimal memory set within token budget
@@ -280,7 +348,8 @@ Initial public release.
 
 ---
 
-[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.0.0...v1.1.0

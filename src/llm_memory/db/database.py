@@ -180,6 +180,9 @@ class Database:
         if current_version < 4:
             await self._migrate_v4()
 
+        if current_version < 5:
+            await self._migrate_v5()
+
     async def _migrate_v1(self) -> None:
         """Initial database schema migration."""
         async with self.transaction():
@@ -589,6 +592,42 @@ class Database:
             await self.execute(
                 "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
                 (4, datetime.now(timezone.utc).isoformat()),
+            )
+
+    async def _migrate_v5(self) -> None:
+        """v1.4.0 migration: Multi-Project Support with namespaces."""
+        async with self.transaction():
+            # 1. Add namespace column to memories table
+            await self.execute("""
+                ALTER TABLE memories
+                ADD COLUMN namespace TEXT NOT NULL DEFAULT 'default'
+            """)
+
+            # 2. Create namespace-related indexes
+            await self.execute("""
+                CREATE INDEX idx_memories_namespace
+                ON memories(namespace)
+            """)
+
+            await self.execute("""
+                CREATE INDEX idx_memories_namespace_tier
+                ON memories(namespace, memory_tier)
+            """)
+
+            await self.execute("""
+                CREATE INDEX idx_memories_namespace_created
+                ON memories(namespace, created_at DESC)
+            """)
+
+            await self.execute("""
+                CREATE INDEX idx_memories_namespace_importance
+                ON memories(namespace, importance_score, created_at)
+            """)
+
+            # 3. Record migration version
+            await self.execute(
+                "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
+                (5, datetime.now(timezone.utc).isoformat()),
             )
 
     @staticmethod

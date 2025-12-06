@@ -37,6 +37,7 @@ from llm_memory.services.export_import_service import ExportImportService
 from llm_memory.services.knowledge_service import KnowledgeService
 from llm_memory.services.linking_service import LinkingService
 from llm_memory.services.memory_service import MemoryService
+from llm_memory.services.namespace_service import NamespaceService
 
 
 @pytest.fixture(scope="session")
@@ -139,11 +140,23 @@ async def knowledge_repository(memory_db: Database) -> KnowledgeRepository:
 
 
 @pytest_asyncio.fixture
+async def namespace_service(test_settings: Settings) -> NamespaceService:
+    """Namespace service."""
+    return NamespaceService(settings=test_settings)
+
+
+@pytest_asyncio.fixture
 async def memory_service(
-    memory_repository: MemoryRepository, embedding_service: EmbeddingService
+    memory_repository: MemoryRepository,
+    embedding_service: EmbeddingService,
+    namespace_service: NamespaceService,
 ) -> MemoryService:
     """Memory service."""
-    return MemoryService(repository=memory_repository, embedding_service=embedding_service)
+    return MemoryService(
+        repository=memory_repository,
+        embedding_service=embedding_service,
+        namespace_service=namespace_service,
+    )
 
 
 @pytest_asyncio.fixture

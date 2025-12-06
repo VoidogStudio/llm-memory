@@ -22,6 +22,7 @@ from llm_memory.services.importance_service import ImportanceService
 from llm_memory.services.knowledge_service import KnowledgeService
 from llm_memory.services.linking_service import LinkingService
 from llm_memory.services.memory_service import MemoryService
+from llm_memory.services.namespace_service import NamespaceService
 from llm_memory.tools import (
     agent_tools,
     batch_tools,
@@ -32,6 +33,7 @@ from llm_memory.tools import (
     knowledge_tools,
     linking_tools,
     memory_tools,
+    similarity_tools,
 )
 
 # Initialize FastMCP server
@@ -46,6 +48,7 @@ consolidation_service: ConsolidationService | None = None
 decay_service: DecayService | None = None
 linking_service: LinkingService | None = None
 export_import_service: ExportImportService | None = None
+namespace_service: NamespaceService | None = None
 db: Database | None = None
 
 # Background tasks
@@ -58,7 +61,7 @@ async def initialize_services(settings: Settings) -> None:
     Args:
         settings: Application settings
     """
-    global memory_service, agent_service, knowledge_service, importance_service, consolidation_service, decay_service, linking_service, export_import_service, db
+    global memory_service, agent_service, knowledge_service, importance_service, consolidation_service, decay_service, linking_service, export_import_service, namespace_service, db
 
     # Initialize database
     db = Database(settings.database_path, settings.embedding_dimensions)
@@ -79,9 +82,10 @@ async def initialize_services(settings: Settings) -> None:
 
     # Initialize services
     embedding_service = EmbeddingService(embedding_provider)
+    namespace_service = NamespaceService(settings)
 
     memory_repo = MemoryRepository(db)
-    memory_service = MemoryService(memory_repo, embedding_service)
+    memory_service = MemoryService(memory_repo, embedding_service, namespace_service)
 
     agent_repo = AgentRepository(db)
     agent_service = AgentService(agent_repo)
@@ -185,6 +189,7 @@ async def memory_store(
     metadata: dict | None = None,
     agent_id: str | None = None,
     ttl_seconds: int | None = None,
+    namespace: str | None = None,
 ) -> dict[str, Any]:
     """Store a new memory entry with automatic embedding generation.
 
@@ -196,6 +201,7 @@ async def memory_store(
         metadata: Additional metadata as key-value pairs
         ttl_seconds: Time-to-live in seconds (for short_term memories)
         agent_id: Agent ID
+        namespace: Target namespace (default: auto-detect from project)
 
     Returns:
         The created memory entry with id and timestamps
@@ -203,7 +209,7 @@ async def memory_store(
     if not memory_service:
         raise RuntimeError("Services not initialized")
     return await memory_tools.memory_store(
-        memory_service, content, content_type, memory_tier, tags, metadata, agent_id, ttl_seconds
+        memory_service, content, content_type, memory_tier, tags, metadata, agent_id, ttl_seconds, namespace
     )
 
 
@@ -215,6 +221,8 @@ async def memory_search(
     tags: list[str] | None = None,
     content_type: str | None = None,
     min_similarity: float = 0.0,
+    namespace: str | None = None,
+    search_scope: str = "current",
 ) -> dict[str, Any]:
     """Search memories using semantic similarity.
 
@@ -225,6 +233,8 @@ async def memory_search(
         tags: Filter by tags (AND condition)
         content_type: Filter by content type
         min_similarity: Minimum similarity threshold (0.0-1.0)
+        namespace: Target namespace (default: auto-detect)
+        search_scope: Search scope - current (this namespace only), shared (current + shared), all (all namespaces)
 
     Returns:
         List of matching memories with similarity scores
@@ -232,7 +242,7 @@ async def memory_search(
     if not memory_service:
         raise RuntimeError("Services not initialized")
     return await memory_tools.memory_search(
-        memory_service, query, top_k, memory_tier, tags, content_type, min_similarity
+        memory_service, query, top_k, memory_tier, tags, content_type, min_similarity, namespace=namespace, search_scope=search_scope
     )
 
 
@@ -511,6 +521,67 @@ async def knowledge_query(
         raise RuntimeError("Services not initialized")
     return await knowledge_tools.knowledge_query(
         knowledge_service, query, top_k, category, document_id, include_document_info
+    )
+
+
+# Similarity Tools
+@mcp.tool()
+async def memory_similar(
+    id: str,
+    top_k: int = 10,
+    min_similarity: float = 0.7,
+    namespace: str | None = None,
+    search_scope: str = "current",
+    exclude_linked: bool = True,
+) -> dict[str, Any]:
+    """Find memories similar to a specified memory.
+
+    Args:
+        id: Base memory ID to find similar memories for
+        top_k: Maximum number of results to return (1-1000)
+        min_similarity: Minimum similarity threshold (0.0-1.0)
+        namespace: Target namespace (default: auto-detect)
+        search_scope: Search scope (current/shared/all)
+        exclude_linked: Exclude already linked memories
+
+    Returns:
+        Similar memories with similarity scores
+    """
+    if not memory_service:
+        raise RuntimeError("Services not initialized")
+    return await similarity_tools.memory_similar(
+        memory_service, id, top_k, min_similarity, namespace, search_scope, exclude_linked
+    )
+
+
+@mcp.tool()
+async def memory_deduplicate(
+    namespace: str | None = None,
+    similarity_threshold: float = 0.95,
+    dry_run: bool = True,
+    merge_strategy: str = "keep_newest",
+    merge_metadata: bool = True,
+    limit: int = 1000,
+    use_lsh: bool = True,
+) -> dict[str, Any]:
+    """Detect and optionally merge duplicate memories.
+
+    Args:
+        namespace: Target namespace (default: auto-detect)
+        similarity_threshold: Similarity threshold for duplicates (0.0-1.0)
+        dry_run: Preview mode without actual deletion (default: True)
+        merge_strategy: Strategy for choosing primary (keep_newest/keep_oldest/highest_importance)
+        merge_metadata: Merge metadata from duplicates into primary
+        limit: Maximum memories to process (1-10000)
+        use_lsh: Use LSH optimization for faster duplicate detection
+
+    Returns:
+        Duplicate groups and merge results
+    """
+    if not memory_service:
+        raise RuntimeError("Services not initialized")
+    return await similarity_tools.memory_deduplicate(
+        memory_service, namespace, similarity_threshold, dry_run, merge_strategy, merge_metadata, limit, use_lsh
     )
 
 

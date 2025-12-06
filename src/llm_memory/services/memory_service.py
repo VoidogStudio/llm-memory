@@ -12,22 +12,28 @@ from llm_memory.models.memory import (
     SearchResult,
 )
 from llm_memory.services.embedding_service import EmbeddingService
+from llm_memory.services.namespace_service import NamespaceService
 
 
 class MemoryService:
     """Service for memory operations."""
 
     def __init__(
-        self, repository: MemoryRepository, embedding_service: EmbeddingService
+        self,
+        repository: MemoryRepository,
+        embedding_service: EmbeddingService,
+        namespace_service: NamespaceService,
     ) -> None:
         """Initialize memory service.
 
         Args:
             repository: Memory repository
             embedding_service: Embedding service
+            namespace_service: Namespace service
         """
         self.repository = repository
         self.embedding_service = embedding_service
+        self.namespace_service = namespace_service
 
     async def store(
         self,
@@ -38,6 +44,7 @@ class MemoryService:
         metadata: dict | None = None,
         agent_id: str | None = None,
         ttl_seconds: int | None = None,
+        namespace: str | None = None,
     ) -> Memory:
         """Store a new memory entry.
 
@@ -49,10 +56,16 @@ class MemoryService:
             metadata: Additional metadata
             agent_id: Agent ID
             ttl_seconds: Time-to-live in seconds
+            namespace: Target namespace
 
         Returns:
             Created memory object
         """
+        # Resolve namespace
+        explicit_namespace = namespace
+        namespace = await self.namespace_service.resolve_namespace(namespace)
+        self.namespace_service.validate_shared_write(namespace, explicit_namespace is not None)
+
         # Create memory object
         now = datetime.now(timezone.utc)
         expires_at = None
@@ -70,6 +83,7 @@ class MemoryService:
             created_at=now,
             updated_at=now,
             expires_at=expires_at,
+            namespace=namespace,
         )
 
         # Generate embedding
@@ -90,6 +104,8 @@ class MemoryService:
         keyword_weight: float = 0.3,
         sort_by: str = "similarity",
         importance_weight: float = 0.3,
+        namespace: str | None = None,
+        search_scope: str = "current",
     ) -> list[SearchResult]:
         """Search memories using semantic similarity, keyword, or hybrid search.
 
@@ -108,6 +124,9 @@ class MemoryService:
         Returns:
             List of search results
         """
+        # Resolve namespace for all search modes
+        resolved_namespace = await self.namespace_service.resolve_namespace(namespace)
+
         # Generate query embedding
         embedding = await self.embedding_service.generate(query)
 
@@ -126,6 +145,8 @@ class MemoryService:
                 memory_tier=memory_tier,
                 tags=tags,
                 content_type=content_type,
+                namespace=resolved_namespace,
+                search_scope=search_scope,
             )
         elif search_mode == "keyword":
             from llm_memory.services.tokenization_service import TokenizationService
@@ -139,6 +160,8 @@ class MemoryService:
                 memory_tier=memory_tier,
                 tags=tags,
                 content_type=content_type,
+                namespace=resolved_namespace,
+                search_scope=search_scope,
             )
 
             # Convert to SearchResult
@@ -160,6 +183,8 @@ class MemoryService:
                 memory_tier=memory_tier,
                 tags=tags,
                 content_type=content_type,
+                namespace=resolved_namespace,
+                search_scope=search_scope,
             )
 
         # Filter by minimum similarity (only for semantic/hybrid)
@@ -182,11 +207,12 @@ class MemoryService:
 
         return results
 
-    async def get(self, memory_id: str) -> Memory | None:
+    async def get(self, memory_id: str, namespace: str | None = None) -> Memory | None:
         """Get memory by ID.
 
         Args:
             memory_id: Memory ID
+            namespace: Namespace for validation (optional)
 
         Returns:
             Memory object or None if not found
@@ -321,12 +347,14 @@ class MemoryService:
         self,
         items: list[dict[str, Any]],
         on_error: str = "rollback",
+        namespace: str | None = None,
     ) -> dict[str, Any]:
         """Store multiple memories with batch embedding generation.
 
         Args:
             items: List of memory parameters
             on_error: Error handling (rollback/continue/stop)
+            namespace: Target namespace for all items
 
         Returns:
             {success_count, error_count, created_ids, errors}
@@ -344,6 +372,11 @@ class MemoryService:
 
         if not items:
             raise ValueError("Items list cannot be empty or must contain at least 1 item")
+
+        # Resolve namespace once for the batch
+        explicit_namespace = namespace
+        resolved_namespace = await self.namespace_service.resolve_namespace(namespace)
+        self.namespace_service.validate_shared_write(resolved_namespace, explicit_namespace is not None)
 
         # Extract contents for batch embedding
         contents = [item.get("content", "") for item in items]
@@ -418,6 +451,7 @@ class MemoryService:
                             created_at=now,
                             updated_at=now,
                             expires_at=expires_at,
+                            namespace=resolved_namespace,
                         )
 
                         # Store in repository without transaction (we're already in one)
@@ -460,6 +494,7 @@ class MemoryService:
                                 created_at=now,
                                 updated_at=now,
                                 expires_at=expires_at,
+                                namespace=resolved_namespace,
                             )
 
                             # Store in repository without transaction
@@ -501,6 +536,7 @@ class MemoryService:
                             created_at=now,
                             updated_at=now,
                             expires_at=expires_at,
+                            namespace=resolved_namespace,
                         )
 
                         # Store in repository without transaction

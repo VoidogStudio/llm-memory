@@ -55,8 +55,9 @@ class MemoryRepository:
             INSERT INTO memories (
                 id, content, content_type, memory_tier, tags, metadata,
                 agent_id, created_at, updated_at, expires_at,
-                importance_score, access_count, last_accessed_at, consolidated_from
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                importance_score, access_count, last_accessed_at, consolidated_from,
+                namespace
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 memory.id,
@@ -81,6 +82,7 @@ class MemoryRepository:
                     if memory.consolidated_from
                     else None
                 ),
+                memory.namespace,
             ),
         )
 
@@ -372,6 +374,8 @@ class MemoryRepository:
         memory_tier: MemoryTier | None = None,
         tags: list[str] | None = None,
         content_type: str | None = None,
+        namespace: str | None = None,
+        search_scope: str = "current",
     ) -> list[SearchResult]:
         """Perform vector similarity search.
 
@@ -381,6 +385,8 @@ class MemoryRepository:
             memory_tier: Memory tier filter
             tags: Tags filter
             content_type: Content type filter
+            namespace: Target namespace filter
+            search_scope: Search scope (current/shared/all)
 
         Returns:
             List of search results with similarity scores
@@ -389,6 +395,15 @@ class MemoryRepository:
         # Always include base join condition
         where_clauses = ["e.memory_id = m.id"]
         filter_params: list[Any] = []
+
+        # Add namespace filtering based on search_scope
+        if namespace and search_scope == "current":
+            where_clauses.append("m.namespace = ?")
+            filter_params.append(namespace)
+        elif namespace and search_scope == "shared":
+            where_clauses.append("m.namespace IN (?, 'shared')")
+            filter_params.append(namespace)
+        # search_scope == "all": no namespace filter
 
         if memory_tier:
             where_clauses.append("m.memory_tier = ?")
@@ -516,6 +531,7 @@ class MemoryRepository:
                 if row_dict.get("consolidated_from")
                 else None
             ),
+            namespace=row_dict.get("namespace", "default"),
         )
 
     async def log_access(
@@ -669,6 +685,8 @@ class MemoryRepository:
         memory_tier: MemoryTier | None = None,
         tags: list[str] | None = None,
         content_type: str | None = None,
+        namespace: str | None = None,
+        search_scope: str = "current",
     ) -> list[tuple[str, float]]:
         """Perform FTS5 keyword search.
 
@@ -678,6 +696,8 @@ class MemoryRepository:
             memory_tier: Optional tier filter
             tags: Optional tags filter
             content_type: Optional content type filter
+            namespace: Target namespace filter
+            search_scope: Search scope (current/shared/all)
 
         Returns:
             List of (memory_id, bm25_score) tuples
@@ -686,6 +706,15 @@ class MemoryRepository:
         # Always include base join condition (use content_id from FTS table)
         where_clauses = ["mf.content_id = m.id"]
         filter_params: list[Any] = []
+
+        # Add namespace filtering based on search_scope
+        if namespace and search_scope == "current":
+            where_clauses.append("m.namespace = ?")
+            filter_params.append(namespace)
+        elif namespace and search_scope == "shared":
+            where_clauses.append("m.namespace IN (?, 'shared')")
+            filter_params.append(namespace)
+        # search_scope == "all": no namespace filter
 
         if memory_tier:
             where_clauses.append("m.memory_tier = ?")
@@ -735,6 +764,8 @@ class MemoryRepository:
         memory_tier: MemoryTier | None = None,
         tags: list[str] | None = None,
         content_type: str | None = None,
+        namespace: str | None = None,
+        search_scope: str = "current",
     ) -> list[SearchResult]:
         """Perform hybrid search (semantic + keyword).
 
@@ -746,6 +777,8 @@ class MemoryRepository:
             memory_tier: Optional tier filter
             tags: Optional tags filter
             content_type: Optional content type filter
+            namespace: Target namespace filter
+            search_scope: Search scope (current/shared/all)
 
         Returns:
             List of SearchResult with combined scores
@@ -759,6 +792,8 @@ class MemoryRepository:
             memory_tier=memory_tier,
             tags=tags,
             content_type=content_type,
+            namespace=namespace,
+            search_scope=search_scope,
         )
 
         # Perform keyword search
@@ -768,6 +803,8 @@ class MemoryRepository:
             memory_tier=memory_tier,
             tags=tags,
             content_type=content_type,
+            namespace=namespace,
+            search_scope=search_scope,
         )
 
         # Convert to format for RRF
@@ -809,5 +846,223 @@ class MemoryRepository:
                     combined_score=rrf_score,
                 )
             )
+
+        return results
+
+    async def find_similar_memories(
+        self,
+        memory_id: str,
+        top_k: int,
+        min_similarity: float,
+        namespace: str | None,
+        search_scope: str,
+        exclude_linked: bool,
+    ) -> list[SearchResult]:
+        """Find memories similar to a specified memory.
+
+        Args:
+            memory_id: Base memory ID
+            top_k: Number of results to return
+            min_similarity: Minimum similarity threshold
+            namespace: Target namespace
+            search_scope: Search scope (current/shared/all)
+            exclude_linked: Exclude already linked memories
+
+        Returns:
+            List of similar memories with similarity scores
+        """
+        # Get base memory embedding
+        cursor = await self.db.execute(
+            "SELECT vec_to_json(embedding) FROM embeddings WHERE memory_id = ?", (memory_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return []
+
+        embedding = json.loads(row[0])
+
+        # Search for similar memories
+        results = await self.vector_search(
+            embedding=embedding,
+            top_k=top_k + 1,  # +1 to account for self
+            namespace=namespace,
+            search_scope=search_scope,
+        )
+
+        # Filter out self and below threshold
+        filtered = [
+            r
+            for r in results
+            if r.memory.id != memory_id and r.similarity >= min_similarity
+        ]
+
+        return filtered[:top_k]
+
+    async def find_duplicates(
+        self,
+        namespace: str,
+        similarity_threshold: float = 0.95,
+        limit: int = 1000,
+        use_lsh: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Find duplicate memory groups.
+
+        Args:
+            namespace: Target namespace
+            similarity_threshold: Similarity threshold for duplicates
+            limit: Maximum memories to process
+            use_lsh: Use LSH optimization
+
+        Returns:
+            List of duplicate groups
+        """
+        if use_lsh:
+            from llm_memory.services.lsh_index import LSH_AVAILABLE, LSHIndex
+
+            if not LSH_AVAILABLE:
+                use_lsh = False
+
+        # Get memories from namespace
+        cursor = await self.db.execute(
+            """
+            SELECT id FROM memories
+            WHERE namespace = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (namespace, limit),
+        )
+        rows = await cursor.fetchall()
+        memory_ids = [row[0] for row in rows]
+
+        if not memory_ids:
+            return []
+
+        # Build LSH index if requested
+        lsh_index = None
+        if use_lsh:
+            from llm_memory.services.lsh_index import LSHIndex
+
+            lsh_index = LSHIndex()
+            await lsh_index.build_index(self, namespace=namespace)
+
+        # Find duplicates
+        duplicate_groups = []
+        processed = set()
+
+        for memory_id in memory_ids:
+            if memory_id in processed:
+                continue
+
+            # Get embedding
+            cursor = await self.db.execute(
+                "SELECT vec_to_json(embedding) FROM embeddings WHERE memory_id = ?", (memory_id,)
+            )
+            row = await cursor.fetchone()
+            if not row:
+                continue
+
+            embedding = json.loads(row[0])
+
+            # Find candidates
+            if lsh_index:
+                candidates = lsh_index.query_candidates(embedding, max_candidates=100)
+            else:
+                candidates = set(memory_ids)
+
+            # Find similar memories
+            duplicates = []
+            for candidate_id in candidates:
+                if candidate_id == memory_id or candidate_id in processed:
+                    continue
+
+                # Get candidate embedding
+                cursor = await self.db.execute(
+                    "SELECT vec_to_json(embedding) FROM embeddings WHERE memory_id = ?",
+                    (candidate_id,),
+                )
+                row = await cursor.fetchone()
+                if not row:
+                    continue
+
+                candidate_embedding = json.loads(row[0])
+
+                # Compute cosine similarity
+                try:
+                    import numpy as np
+
+                    emb1 = np.array(embedding)
+                    emb2 = np.array(candidate_embedding)
+                    similarity = float(
+                        np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2))
+                    )
+                except ImportError:
+                    # Fallback without numpy
+                    dot_product = sum(a * b for a, b in zip(embedding, candidate_embedding, strict=False))
+                    norm1 = sum(a * a for a in embedding) ** 0.5
+                    norm2 = sum(b * b for b in candidate_embedding) ** 0.5
+                    similarity = dot_product / (norm1 * norm2) if norm1 > 0 and norm2 > 0 else 0
+
+                if similarity >= similarity_threshold:
+                    duplicates.append(candidate_id)
+                    processed.add(candidate_id)
+
+            if duplicates:
+                avg_similarity = similarity_threshold  # Simplified
+                duplicate_groups.append(
+                    {
+                        "primary_id": memory_id,
+                        "duplicate_ids": duplicates,
+                        "avg_similarity": avg_similarity,
+                    }
+                )
+                processed.add(memory_id)
+
+        return duplicate_groups
+
+    async def get_all_embeddings(
+        self,
+        namespace: str | None = None,
+        limit: int | None = None,
+    ) -> list[tuple[str, list[float]]]:
+        """Get all embeddings for LSH index building.
+
+        Args:
+            namespace: Target namespace filter
+            limit: Maximum number of embeddings to retrieve
+
+        Returns:
+            List of (memory_id, embedding) tuples
+        """
+        if namespace:
+            query = """
+                SELECT m.id, vec_to_json(e.embedding)
+                FROM memories m
+                JOIN embeddings e ON e.memory_id = m.id
+                WHERE m.namespace = ?
+                ORDER BY m.created_at DESC
+            """
+            params: tuple[Any, ...] = (namespace,)
+        else:
+            query = """
+                SELECT m.id, vec_to_json(e.embedding)
+                FROM memories m
+                JOIN embeddings e ON e.memory_id = m.id
+                ORDER BY m.created_at DESC
+            """
+            params = ()
+
+        if limit:
+            query += " LIMIT ?"
+            params = params + (limit,)
+
+        cursor = await self.db.execute(query, params)
+        rows = await cursor.fetchall()
+
+        results = []
+        for row in rows:
+            memory_id = row[0]
+            embedding = json.loads(row[1])
+            results.append((memory_id, embedding))
 
         return results
