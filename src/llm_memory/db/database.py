@@ -1,5 +1,6 @@
 """Database connection and migration management."""
 
+import asyncio
 import json
 import sqlite3
 from collections.abc import AsyncIterator
@@ -47,6 +48,8 @@ class Database:
         self.database_path = database_path
         self.embedding_dimensions = embedding_dimensions
         self.conn: aiosqlite.Connection | None = None
+        self._write_lock = asyncio.Lock()
+        self._in_transaction = False
 
     async def connect(self) -> None:
         """Connect to database and load sqlite-vec extension."""
@@ -120,6 +123,10 @@ class Database:
     async def transaction(self) -> AsyncIterator[None]:
         """Context manager for database transactions.
 
+        Provides exclusive write access with proper nesting detection.
+        If already in a transaction, yields without starting a new one
+        to prevent "cannot start a transaction within a transaction" errors.
+
         Yields:
             None
 
@@ -130,13 +137,23 @@ class Database:
         if not self.conn:
             raise RuntimeError("Database not connected")
 
-        await self.conn.execute("BEGIN")
-        try:
+        # If already in a transaction, just yield without nesting
+        if self._in_transaction:
             yield
-            await self.conn.commit()
-        except Exception:
-            await self.conn.rollback()
-            raise
+            return
+
+        # Acquire write lock for exclusive access
+        async with self._write_lock:
+            self._in_transaction = True
+            await self.conn.execute("BEGIN")
+            try:
+                yield
+                await self.conn.commit()
+            except Exception:
+                await self.conn.rollback()
+                raise
+            finally:
+                self._in_transaction = False
 
     async def migrate(self) -> None:
         """Run database migrations."""
@@ -159,6 +176,9 @@ class Database:
 
         if current_version < 3:
             await self._migrate_v3()
+
+        if current_version < 4:
+            await self._migrate_v4()
 
     async def _migrate_v1(self) -> None:
         """Initial database schema migration."""
@@ -215,11 +235,11 @@ class Database:
                 "WHERE expires_at IS NOT NULL"
             )
 
-            # Create embeddings virtual table
+            # Create embeddings virtual table with cosine distance metric
             await self.execute(f"""
                 CREATE VIRTUAL TABLE IF NOT EXISTS embeddings USING vec0(
                     memory_id TEXT PRIMARY KEY,
-                    embedding FLOAT[{self.embedding_dimensions}]
+                    embedding FLOAT[{self.embedding_dimensions}] distance_metric=cosine
                 )
             """)
 
@@ -296,11 +316,11 @@ class Database:
                 "ON knowledge_chunks(document_id, chunk_index)"
             )
 
-            # Create chunk_embeddings virtual table
+            # Create chunk_embeddings virtual table with cosine distance metric
             await self.execute(f"""
                 CREATE VIRTUAL TABLE IF NOT EXISTS chunk_embeddings USING vec0(
                     chunk_id TEXT PRIMARY KEY,
-                    embedding FLOAT[{self.embedding_dimensions}]
+                    embedding FLOAT[{self.embedding_dimensions}] distance_metric=cosine
                 )
             """)
 
@@ -508,6 +528,67 @@ class Database:
             await self.execute(
                 "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
                 (3, datetime.now(timezone.utc).isoformat()),
+            )
+
+    async def _migrate_v4(self) -> None:
+        """v1.3.0 migration: Switch to cosine distance for vector search.
+
+        Recreates embeddings and chunk_embeddings virtual tables with
+        distance_metric=cosine for more accurate semantic similarity scores.
+        """
+        async with self.transaction():
+            # 1. Backup embeddings data to temporary table
+            await self.execute("""
+                CREATE TABLE embeddings_backup AS
+                SELECT memory_id, embedding FROM embeddings
+            """)
+
+            # 2. Drop old embeddings virtual table
+            await self.execute("DROP TABLE embeddings")
+
+            # 3. Create new embeddings table with cosine distance metric
+            await self.execute(f"""
+                CREATE VIRTUAL TABLE embeddings USING vec0(
+                    memory_id TEXT PRIMARY KEY,
+                    embedding FLOAT[{self.embedding_dimensions}] distance_metric=cosine
+                )
+            """)
+
+            # 4. Restore embeddings data
+            await self.execute("""
+                INSERT INTO embeddings (memory_id, embedding)
+                SELECT memory_id, embedding FROM embeddings_backup
+            """)
+
+            # 5. Drop backup table
+            await self.execute("DROP TABLE embeddings_backup")
+
+            # 6. Do the same for chunk_embeddings
+            await self.execute("""
+                CREATE TABLE chunk_embeddings_backup AS
+                SELECT chunk_id, embedding FROM chunk_embeddings
+            """)
+
+            await self.execute("DROP TABLE chunk_embeddings")
+
+            await self.execute(f"""
+                CREATE VIRTUAL TABLE chunk_embeddings USING vec0(
+                    chunk_id TEXT PRIMARY KEY,
+                    embedding FLOAT[{self.embedding_dimensions}] distance_metric=cosine
+                )
+            """)
+
+            await self.execute("""
+                INSERT INTO chunk_embeddings (chunk_id, embedding)
+                SELECT chunk_id, embedding FROM chunk_embeddings_backup
+            """)
+
+            await self.execute("DROP TABLE chunk_embeddings_backup")
+
+            # 7. Record migration version
+            await self.execute(
+                "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
+                (4, datetime.now(timezone.utc).isoformat()),
             )
 
     @staticmethod

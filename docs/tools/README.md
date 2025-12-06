@@ -227,18 +227,21 @@ All tools return a unified error format:
 |------|-------------|
 | `ValidationError` | Input parameter validation error |
 | `NotFoundError` | Specified resource not found |
+| `BatchOperationError` | Error during batch operation (v1.3.0) |
 
 ---
 
 ## Limitations
 
-| Item | Limit |
-|------|-------|
-| Recommended max memories | 100,000 |
-| Concurrent writes | Single (SQLite limitation) |
-| Max chunk size | 2,000 characters |
-| `top_k` range | 1-1,000 |
-| `chunk_size` range | 100-10,000 |
+| Item | Limit | Notes |
+|------|-------|-------|
+| Recommended max memories | 100,000 | |
+| Concurrent writes | Single | SQLite limitation |
+| Max chunk size | 2,000 characters | |
+| `top_k` range | 1-1,000 | |
+| `chunk_size` range | 100-10,000 | |
+| Batch operation size | 1-1,000 | Configurable via `LLM_MEMORY_BATCH_MAX_SIZE` (v1.3.0) |
+| Max content length | 1,000,000 chars | Configurable via `LLM_MEMORY_MAX_CONTENT_LENGTH` (v1.3.0) |
 
 ---
 

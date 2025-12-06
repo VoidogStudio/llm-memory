@@ -7,7 +7,7 @@ Persistent memory and knowledge management for LLMs via Model Context Protocol (
 
 ## Features
 
-- **Semantic Search** - Vector similarity search with sqlite-vec
+- **Semantic Search** - Vector similarity search with sqlite-vec (cosine distance)
 - **Hybrid Search** - Combine keyword (FTS5) and semantic search
 - **Multi-Tier Memory** - Short-term (with TTL), long-term, and working memory
 - **Importance Scoring** - Access pattern-based memory prioritization
@@ -155,14 +155,42 @@ Create `.mcp.json` in your project root:
 
 ## Configuration
 
+All settings can be configured via environment variables with the `LLM_MEMORY_` prefix.
+
+### Core Settings
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LLM_MEMORY_DB_PATH` | `./data/memory.db` | Database file path |
+| `LLM_MEMORY_DATABASE_PATH` | `./data/llm_memory.db` | Database file path |
 | `LLM_MEMORY_EMBEDDING_PROVIDER` | `local` | `local` or `openai` |
 | `LLM_MEMORY_EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Local embedding model |
-| `LLM_MEMORY_EMBEDDING_DIMENSIONS` | `384` | Embedding vector dimensions |
-| `LLM_MEMORY_CLEANUP_INTERVAL` | `300` | TTL cleanup interval (seconds) |
-| `OPENAI_API_KEY` | - | Required for OpenAI embeddings |
+| `LLM_MEMORY_EMBEDDING_DIMENSIONS` | `384` | Embedding vector dimensions (1-4096) |
+| `LLM_MEMORY_CLEANUP_INTERVAL_SECONDS` | `300` | TTL cleanup interval (min 60s) |
+| `LLM_MEMORY_OPENAI_API_KEY` | - | Required for OpenAI embeddings |
+
+### Performance Settings (v1.3.0)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_MEMORY_BATCH_MAX_SIZE` | `100` | Maximum batch operation size (1-1000) |
+| `LLM_MEMORY_SEARCH_DEFAULT_TOP_K` | `10` | Default search results (1-1000) |
+| `LLM_MEMORY_EMBEDDING_BATCH_SIZE` | `32` | Embedding generation batch size |
+| `LLM_MEMORY_MAX_CONTENT_LENGTH` | `1000000` | Max content length in chars (1MB) |
+
+### Importance & Decay Settings (v1.3.0)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_MEMORY_IMPORTANCE_MAX_ACCESSES` | `100` | Max access count for scoring |
+| `LLM_MEMORY_ACCESS_LOG_RATE_LIMIT_SECONDS` | `60` | Rate limit for access logging |
+| `LLM_MEMORY_RRF_CONSTANT` | `60` | Reciprocal Rank Fusion constant |
+
+### Consolidation Settings (v1.3.0)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_MEMORY_CONSOLIDATION_MIN_MEMORIES` | `2` | Min memories for consolidation |
+| `LLM_MEMORY_CONSOLIDATION_MAX_MEMORIES` | `50` | Max memories per consolidation |
 
 ## Usage Examples
 
@@ -477,7 +505,7 @@ ruff check src/
 ## Limitations
 
 - Recommended max: 100,000 memories
-- Single concurrent writer (SQLite limitation)
+- Single concurrent writer (SQLite limitation, with async lock for safety)
 - Maximum chunk size: 2,000 characters
 - Embedding dimensions: 384 (local) / 1536 (OpenAI)
 

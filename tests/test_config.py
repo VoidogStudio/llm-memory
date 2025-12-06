@@ -1,5 +1,6 @@
 """Tests for configuration management."""
 
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -14,7 +15,8 @@ class TestSettings:
         """Test default configuration values."""
         settings = Settings()
 
-        assert settings.database_path == "./data/llm_memory.db"
+        # database_path uses default_factory, so check it ends with expected path
+        assert settings.database_path.endswith("data/llm_memory.db")
         assert settings.embedding_provider == "local"
         assert settings.embedding_model == "all-MiniLM-L6-v2"
         assert settings.embedding_dimensions == 384
@@ -22,6 +24,10 @@ class TestSettings:
         assert settings.embedding_batch_size == 32
         assert settings.search_default_top_k == 10
         assert settings.log_level == "INFO"
+        # Check new settings have defaults
+        assert settings.batch_max_size == 100
+        assert settings.max_content_length == 1_000_000
+        assert settings.rrf_constant == 60
 
     def test_custom_settings(self):
         """Test creating settings with custom values."""
@@ -44,13 +50,13 @@ class TestSettings:
     def test_env_variable_override(self, monkeypatch):
         """Test that environment variables override defaults."""
         monkeypatch.setenv("LLM_MEMORY_DATABASE_PATH", "/env/path.db")
-        monkeypatch.setenv("LLM_MEMORY_EMBEDDING_PROVIDER", "openai")
+        monkeypatch.setenv("LLM_MEMORY_EMBEDDING_PROVIDER", "local")
         monkeypatch.setenv("LLM_MEMORY_EMBEDDING_DIMENSIONS", "1536")
 
         settings = Settings()
 
         assert settings.database_path == "/env/path.db"
-        assert settings.embedding_provider == "openai"
+        assert settings.embedding_provider == "local"
         assert settings.embedding_dimensions == 1536
 
     def test_env_prefix(self, monkeypatch):
@@ -60,7 +66,8 @@ class TestSettings:
 
         settings = Settings()
 
-        assert settings.database_path == "./data/llm_memory.db"
+        # Should use default (ends with data/llm_memory.db), not the env var without prefix
+        assert settings.database_path.endswith("data/llm_memory.db")
 
     def test_openai_settings(self):
         """Test OpenAI-specific settings."""
@@ -81,10 +88,29 @@ class TestSettings:
 
     def test_negative_dimensions(self):
         """Test that negative dimensions raise validation error."""
-        # Pydantic will accept this since it's typed as int
-        # but in practice the embedding service would fail
-        settings = Settings(embedding_dimensions=-1)
-        assert settings.embedding_dimensions == -1
+        # Now properly validates that dimensions must be >= 1
+        with pytest.raises(ValidationError):
+            Settings(embedding_dimensions=-1)
+
+    def test_zero_dimensions(self):
+        """Test that zero dimensions raise validation error."""
+        with pytest.raises(ValidationError):
+            Settings(embedding_dimensions=0)
+
+    def test_openai_without_api_key(self):
+        """Test that OpenAI provider without API key raises validation error."""
+        with pytest.raises(ValidationError) as exc_info:
+            Settings(embedding_provider="openai")
+        assert "OpenAI API key is required" in str(exc_info.value)
+
+    def test_consolidation_min_max_validation(self):
+        """Test that consolidation min/max validation works."""
+        with pytest.raises(ValidationError) as exc_info:
+            Settings(
+                consolidation_min_memories=100,
+                consolidation_max_memories=50,
+            )
+        assert "consolidation_min_memories" in str(exc_info.value)
 
     def test_settings_model_config(self):
         """Test that model config is properly set."""

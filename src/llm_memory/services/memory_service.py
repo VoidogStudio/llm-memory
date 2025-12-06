@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from llm_memory.config import get_settings
 from llm_memory.db.repositories.memory_repository import MemoryRepository
 from llm_memory.models.memory import (
     ContentType,
@@ -331,13 +332,14 @@ class MemoryService:
             {success_count, error_count, created_ids, errors}
 
         Raises:
-            ValueError: If items exceeds MAX_BATCH_SIZE (100) or is empty
+            ValueError: If items exceeds configured batch_max_size or is empty
         """
-        MAX_BATCH_SIZE = 100
+        settings = get_settings()
+        max_batch_size = settings.batch_max_size
 
-        if len(items) > MAX_BATCH_SIZE:
+        if len(items) > max_batch_size:
             raise ValueError(
-                f"Batch size exceeds maximum of {MAX_BATCH_SIZE}, got {len(items)}"
+                f"Batch size exceeds maximum of {max_batch_size}, got {len(items)}"
             )
 
         if not items:
@@ -534,13 +536,14 @@ class MemoryService:
             {success_count, error_count, updated_ids, errors}
 
         Raises:
-            ValueError: If updates exceeds MAX_BATCH_SIZE (100) or is empty
+            ValueError: If updates exceeds configured batch_max_size or is empty
         """
-        MAX_BATCH_SIZE = 100
+        settings = get_settings()
+        max_batch_size = settings.batch_max_size
 
-        if len(updates) > MAX_BATCH_SIZE:
+        if len(updates) > max_batch_size:
             raise ValueError(
-                f"Batch size exceeds maximum of {MAX_BATCH_SIZE}, got {len(updates)}"
+                f"Batch size exceeds maximum of {max_batch_size}, got {len(updates)}"
             )
 
         if not updates:

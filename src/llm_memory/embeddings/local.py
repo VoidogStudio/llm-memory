@@ -83,8 +83,16 @@ class LocalEmbeddingProvider(EmbeddingProvider):
 
         Returns:
             Number of dimensions
+
+        Raises:
+            RuntimeError: If model fails to load properly
         """
         if self._dimensions is None:
             self._load_model()
 
-        return self._dimensions or 384
+        if self._dimensions is None:
+            raise RuntimeError(
+                f"Failed to determine embedding dimensions for model: {self.model_name}"
+            )
+
+        return self._dimensions

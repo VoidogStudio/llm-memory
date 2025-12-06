@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2025-12-06
+
+### Fixed
+
+- **Transaction Conflict Error** (Critical)
+  - Fixed "cannot start a transaction within a transaction" error under high load
+  - Added `asyncio.Lock` for exclusive write access
+  - Added transaction nesting detection to prevent double `BEGIN` statements
+  - Affected tools: `memory_store`, `memory_batch_store`, `memory_batch_update`, `database_import`
+
+- **Similarity Score Returns 0**
+  - Fixed similarity scores incorrectly returning 0 for dissimilar content
+  - Switched from L2 distance to cosine distance metric (`distance_metric=cosine`)
+  - Similarity now correctly ranges 0.0-1.0 (0=opposite, 1=identical)
+  - Added database migration v4 for existing databases
+
+### Changed
+
+- **Database Schema v4**
+  - Recreated `embeddings` and `chunk_embeddings` virtual tables with cosine distance
+  - Automatic migration preserves all existing data
+  - New databases use cosine distance from initial creation
+
+- **Configuration Improvements**
+  - Added new configurable settings: `batch_max_size`, `max_content_length`, `rrf_constant`, `importance_max_accesses`, `consolidation_min_memories`, `consolidation_max_memories`, `access_log_rate_limit_seconds`
+  - Added Pydantic `model_validator` for cross-field validation (OpenAI API key requirement, consolidation min/max consistency)
+  - Added range validation (`ge`, `le`) for all numeric settings
+  - Replaced hardcoded magic numbers with configurable settings
+
+- **Global Settings Access**
+  - Added `get_settings()`, `set_settings()`, `reset_settings()` functions for dependency injection
+  - Services now read configuration from global settings singleton
+
+- **Type Safety Improvements**
+  - Explicit list conversion in `embeddings/openai.py` for type safety
+  - Proper error handling in `embeddings/local.py` dimensions() instead of silent fallback
+
+- **Error Handling Improvements**
+  - More specific exception catching in `batch_tools.py` (ValueError, NotFoundError, OSError, RuntimeError)
+  - Added logging for error diagnosis in batch operations
+  - Replaced silent `except: pass` with debug logging in `server.py`
+
+### Added
+
+- **Validation Utilities** (`src/llm_memory/utils/validators.py`)
+  - `validate_uuid()` - UUID format validation
+  - `validate_content()` - Content validation with size limits
+  - `validate_memory_tier()` - Memory tier enum validation
+  - `validate_tags()` - Tag list normalization
+  - `validate_positive_int()` - Range-bounded integer validation
+  - `validate_batch_ids()` - Batch ID list validation
+
+### Technical Details
+
+- 193 total tests (all pass)
+- Bandit security scan: 16 MEDIUM (all are parameterized queries, no actual risk)
+- Ruff lint: All checks pass
+- Test coverage: 69%
+
+---
+
 ## [1.2.0] - 2025-12-06
 
 ### Added
@@ -185,16 +246,42 @@ Initial public release.
 
 ## Roadmap
 
-### v2.0.0
+### v1.4.0 - Multi-Project Support
 
-- **PostgreSQL Support** - pgvector backend for scale
-- **Memory Encryption** - Encrypt sensitive data at rest
-- **Multi-tenant** - Isolated memory spaces per user
-- **Streaming** - Real-time memory updates
+- **Namespace** - Logical separation of memories per project
+- **Auto-detection** - Automatic namespace from project context
+- **Cross-project sharing** - Share common knowledge via `shared` namespace
+- **memory_similar** - Auto-detect similar memories
+- **memory_deduplicate** - Detect and merge duplicate memories
+
+### v1.5.0 - Intelligent Context
+
+- **memory_context_build** - Build optimal memory set within token budget
+- **Auto-summarization** - Compress long memories to specified token count
+- **Graph traversal** - Collect related memories by following links
+- **Semantic cache** - Cache similar query results and LLM responses
+
+### v1.6.0 - Auto Knowledge Acquisition
+
+- **Project scan** - Auto-import README, docs/, code comments
+- **knowledge_sync** - Watch directory and auto-import on changes
+- **Session learning** - Auto-extract learnings from conversations
+- **Staleness detection** - Auto-mark outdated memories
+
+### v2.0.0 - Enterprise Features
+
+- **PostgreSQL** - pgvector backend for horizontal scaling
+- **Memory encryption** - Field-level encryption for sensitive data
+- **Multi-tenant** - Isolated memory spaces with access control
+- **Streaming** - Real-time memory updates via SSE/WebSocket
+- **TUI dashboard** - Terminal UI for management
+- **Audit logging** - Track memory access history
+- **Conflict detection** - Alert on contradictory information
 
 ---
 
-[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/VoidogStudio/llm-memory/compare/v0.1.0...v1.0.0

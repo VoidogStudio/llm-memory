@@ -115,8 +115,9 @@ async def start_background_tasks() -> None:
     def remove_task(t: asyncio.Task[None]) -> None:
         try:
             _background_tasks.discard(t)
-        except Exception:
-            pass  # Ignore errors during cleanup
+        except Exception as e:
+            # Log errors during cleanup for debugging, but don't raise
+            logging.debug("Error during background task cleanup: %s", e)
 
     task.add_done_callback(remove_task)
 

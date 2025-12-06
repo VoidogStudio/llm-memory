@@ -409,11 +409,14 @@ class MemoryRepository:
 
         # Perform vector search with fully parameterized query
         # sqlite-vec requires LIMIT in the subquery for knn searches
+        # Note: sqlite-vec cosine distance ranges from 0 to 2
+        # (0 = identical, 2 = opposite direction)
+        # Convert to similarity: 1 - distance/2 gives range 0 to 1
         cursor = await self.db.execute(
             f"""
             SELECT
                 m.*,
-                MAX(0, 1 - distance) as similarity
+                (1.0 - distance / 2.0) as similarity
             FROM (
                 SELECT embedding, memory_id, distance
                 FROM embeddings

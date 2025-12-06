@@ -58,7 +58,8 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         # Generate embedding
         response = await client.embeddings.create(input=[text], model=self.model)
 
-        return response.data[0].embedding
+        # Explicitly convert to list for type safety
+        return list(response.data[0].embedding)
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts.
@@ -77,8 +78,8 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         # Generate embeddings
         response = await client.embeddings.create(input=texts, model=self.model)
 
-        # Extract embeddings in the same order
-        return [item.embedding for item in response.data]
+        # Extract embeddings in the same order, explicitly converting to list
+        return [list(item.embedding) for item in response.data]
 
     def dimensions(self) -> int:
         """Get embedding vector dimensions.

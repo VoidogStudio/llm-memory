@@ -12,8 +12,8 @@ Memory Tools are a set of tools for LLMs to manage searchable persistent memory 
 | `memory_update` | Update memory |
 | `memory_delete` | Delete memory |
 | `memory_list` | List with filtering and pagination |
-| `memory_batch_store` | Batch store multiple memories (max 100) **v1.1.0** |
-| `memory_batch_update` | Batch update multiple memories **v1.1.0** |
+| `memory_batch_store` | Batch store multiple memories (configurable max) **v1.1.0** |
+| `memory_batch_update` | Batch update multiple memories (configurable max) **v1.1.0** |
 | `memory_get_score` | Get importance score **v1.1.0** |
 | `memory_set_score` | Manually set importance score **v1.1.0** |
 | `memory_consolidate` | Consolidate and summarize related memories **v1.1.0** |
@@ -363,8 +363,10 @@ Batch store multiple memories at once.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `items` | array | Yes | - | List of memories to store (max 100) |
+| `items` | array | Yes | - | List of memories to store (max configurable, default 100) |
 | `on_error` | string | No | `"rollback"` | Error handling behavior |
+
+> **Note (v1.3.0)**: Maximum batch size is configurable via `LLM_MEMORY_BATCH_MAX_SIZE` environment variable (default: 100, range: 1-1000).
 
 **items elements:**
 - `content` (string, required) - Content
@@ -412,8 +414,10 @@ Batch update multiple memories at once.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `updates` | array | Yes | - | List of memories to update |
+| `updates` | array | Yes | - | List of memories to update (max configurable, default 100) |
 | `on_error` | string | No | `"rollback"` | Error handling behavior |
+
+> **Note (v1.3.0)**: Maximum batch size is configurable via `LLM_MEMORY_BATCH_MAX_SIZE` environment variable (default: 100, range: 1-1000).
 
 **updates elements:**
 - `id` (string, required) - Memory ID
