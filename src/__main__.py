@@ -16,7 +16,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s 1.4.1",
+        version="%(prog)s 1.6.2",
     )
     return parser.parse_args()
 

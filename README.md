@@ -1,6 +1,6 @@
 # LLM Memory
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10-3.13](https://img.shields.io/badge/python-3.10--3.13-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Persistent memory and knowledge management for LLMs via Model Context Protocol (MCP).
@@ -34,8 +34,8 @@ Persistent memory and knowledge management for LLMs via Model Context Protocol (
 - **Knowledge Base** - Document chunking and retrieval
 - **Agent Communication** - Message passing and context sharing between agents
 - **Flexible Embeddings** - Local (Sentence Transformers) or OpenAI
-- **Multilingual E5** - Default embedding model with 100+ language support (v1.6.1)
-- **Japanese Support** - Optional SudachiPy tokenization for FTS5
+- **Multilingual E5** - Default embedding model with 100+ language support (v1.6.1+)
+- **Japanese Support** - Optional SudachiPy tokenization for FTS5 (Python ≤3.13)
 - **TTL Auto-Cleanup** - Automatic expiration of short-term memories
 
 ## Installation
@@ -634,7 +634,7 @@ knowledge_refresh_stale(
 - **Async I/O**: aiosqlite for non-blocking operations
 - **Models**: Pydantic for data validation
 - **Embeddings**: Sentence Transformers or OpenAI
-- **Python**: 3.10 - 3.14 compatible
+- **Python**: 3.10 - 3.13 recommended (3.14 works but SudachiPy unavailable)
 
 ## Documentation
 
@@ -670,6 +670,7 @@ ruff check src
 - Single concurrent writer (SQLite limitation, with async lock for safety)
 - Maximum chunk size: 2,000 characters
 - Embedding dimensions: 384 (local) / 1536 (OpenAI)
+- **Python 3.14**: SudachiPy (Japanese tokenization) is not yet available. FTS5 keyword search will use the default unicode61 tokenizer for all text.
 
 ## License
 

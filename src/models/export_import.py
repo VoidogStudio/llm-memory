@@ -11,7 +11,7 @@ class ExportMetadata(BaseModel):
 
     schema_version: int = 3
     exported_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    llm_memory_version: str = "1.2.0"
+    llm_memory_version: str = "1.6.2"
     counts: dict[str, int] = Field(default_factory=dict)
 
 

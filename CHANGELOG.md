@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2025-12-08
+
+### Improved
+
+- **Code optimization** - Eliminated code duplication and improved performance
+  - Extracted `_create_memory_from_item()` helper in `MemoryService` for batch operations
+  - Extracted `_build_update_dict()` helper in `MemoryService` for update operations
+  - Fixed N+1 query problem in `find_duplicates()` by batch fetching embeddings
+  - Consolidated repeated imports (numpy, LSHIndex) in `MemoryRepository`
+  - Moved `TokenizationService` import to module level in `MemoryService`
+
+### Documentation
+
+- **Python version guidance** - Updated recommended Python version to 3.10-3.13
+  - SudachiPy (Japanese tokenization) is not yet available for Python 3.14
+  - Python 3.14 still works but uses default unicode61 tokenizer for all text
+
+### Technical Details
+
+- Reduced ~120 lines of duplicated code in batch operations
+- O(1) embedding lookup in duplicate detection (was O(N) per memory)
+- All 356 tests pass, 3 skipped, 0 warnings
+
 ## [1.6.1] - 2025-12-08
 
 ### Changed
@@ -500,6 +523,7 @@ Initial public release.
 
 ---
 
+[1.6.2]: https://github.com/VoidogStudio/llm-memory/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/VoidogStudio/llm-memory/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.4.1...v1.5.0

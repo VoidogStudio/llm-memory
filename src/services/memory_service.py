@@ -13,6 +13,7 @@ from src.models.memory import (
 )
 from src.services.embedding_service import EmbeddingService
 from src.services.namespace_service import NamespaceService
+from src.services.tokenization_service import TokenizationService
 
 
 class MemoryService:
@@ -132,8 +133,6 @@ class MemoryService:
 
         # Perform search based on mode
         if search_mode == "hybrid":
-            from src.services.tokenization_service import TokenizationService
-
             tokenizer = TokenizationService()
             tokenized_query = tokenizer.tokenize_query(query)
 
@@ -149,8 +148,6 @@ class MemoryService:
                 search_scope=search_scope,
             )
         elif search_mode == "keyword":
-            from src.services.tokenization_service import TokenizationService
-
             tokenizer = TokenizationService()
             tokenized_query = tokenizer.tokenize_query(query)
 
@@ -343,6 +340,62 @@ class MemoryService:
         """
         return await self.repository.cleanup_expired()
 
+    def _create_memory_from_item(
+        self,
+        item: dict[str, Any],
+        resolved_namespace: str,
+    ) -> Memory:
+        """Create Memory object from batch item.
+
+        Args:
+            item: Dictionary containing memory parameters
+            resolved_namespace: Resolved namespace for the memory
+
+        Returns:
+            Memory object ready to be stored
+        """
+        now = datetime.now(timezone.utc)
+        ttl_seconds = item.get("ttl_seconds")
+        expires_at = now + timedelta(seconds=ttl_seconds) if ttl_seconds else None
+
+        return Memory(
+            content=item["content"],
+            content_type=ContentType(item.get("content_type", "text")),
+            memory_tier=MemoryTier(item.get("memory_tier", "long_term")),
+            tags=item.get("tags", []),
+            metadata=item.get("metadata", {}),
+            agent_id=item.get("agent_id"),
+            created_at=now,
+            updated_at=now,
+            expires_at=expires_at,
+            namespace=resolved_namespace,
+        )
+
+    def _build_update_dict(self, update: dict[str, Any]) -> dict[str, Any]:
+        """Build update dictionary from raw update parameters.
+
+        Args:
+            update: Dictionary containing update parameters
+
+        Returns:
+            Dictionary with validated update fields
+        """
+        update_dict: dict[str, Any] = {}
+
+        if "content" in update:
+            update_dict["content"] = update["content"]
+
+        if "tags" in update:
+            update_dict["tags"] = update["tags"]
+
+        if "metadata" in update:
+            update_dict["metadata"] = update["metadata"]
+
+        if "memory_tier" in update:
+            update_dict["memory_tier"] = MemoryTier(update["memory_tier"])
+
+        return update_dict
+
     async def batch_store(
         self,
         items: list[dict[str, Any]],
@@ -433,28 +486,7 @@ class MemoryService:
             try:
                 async with self.repository.db.transaction():
                     for item, embedding in zip(items, embeddings, strict=True):
-                        # Create memory object
-                        now = datetime.now(timezone.utc)
-                        ttl_seconds = item.get("ttl_seconds")
-                        expires_at = None
-
-                        if ttl_seconds:
-                            expires_at = now + timedelta(seconds=ttl_seconds)
-
-                        memory = Memory(
-                            content=item["content"],
-                            content_type=ContentType(item.get("content_type", "text")),
-                            memory_tier=MemoryTier(item.get("memory_tier", "long_term")),
-                            tags=item.get("tags", []),
-                            metadata=item.get("metadata", {}),
-                            agent_id=item.get("agent_id"),
-                            created_at=now,
-                            updated_at=now,
-                            expires_at=expires_at,
-                            namespace=resolved_namespace,
-                        )
-
-                        # Store in repository without transaction (we're already in one)
+                        memory = self._create_memory_from_item(item, resolved_namespace)
                         created = await self.repository.create(
                             memory, embedding, use_transaction=False
                         )
@@ -472,32 +504,7 @@ class MemoryService:
                         zip(items, embeddings, strict=True)
                     ):
                         try:
-                            # Create memory object
-                            now = datetime.now(timezone.utc)
-                            ttl_seconds = item.get("ttl_seconds")
-                            expires_at = None
-
-                            if ttl_seconds:
-                                expires_at = now + timedelta(seconds=ttl_seconds)
-
-                            memory = Memory(
-                                content=item["content"],
-                                content_type=ContentType(
-                                    item.get("content_type", "text")
-                                ),
-                                memory_tier=MemoryTier(
-                                    item.get("memory_tier", "long_term")
-                                ),
-                                tags=item.get("tags", []),
-                                metadata=item.get("metadata", {}),
-                                agent_id=item.get("agent_id"),
-                                created_at=now,
-                                updated_at=now,
-                                expires_at=expires_at,
-                                namespace=resolved_namespace,
-                            )
-
-                            # Store in repository without transaction
+                            memory = self._create_memory_from_item(item, resolved_namespace)
                             created = await self.repository.create(
                                 memory, embedding, use_transaction=False
                             )
@@ -518,28 +525,7 @@ class MemoryService:
             async with self.repository.db.transaction():
                 for i, (item, embedding) in enumerate(zip(items, embeddings, strict=True)):
                     try:
-                        # Create memory object
-                        now = datetime.now(timezone.utc)
-                        ttl_seconds = item.get("ttl_seconds")
-                        expires_at = None
-
-                        if ttl_seconds:
-                            expires_at = now + timedelta(seconds=ttl_seconds)
-
-                        memory = Memory(
-                            content=item["content"],
-                            content_type=ContentType(item.get("content_type", "text")),
-                            memory_tier=MemoryTier(item.get("memory_tier", "long_term")),
-                            tags=item.get("tags", []),
-                            metadata=item.get("metadata", {}),
-                            agent_id=item.get("agent_id"),
-                            created_at=now,
-                            updated_at=now,
-                            expires_at=expires_at,
-                            namespace=resolved_namespace,
-                        )
-
-                        # Store in repository without transaction
+                        memory = self._create_memory_from_item(item, resolved_namespace)
                         created = await self.repository.create(
                             memory, embedding, use_transaction=False
                         )
@@ -613,28 +599,14 @@ class MemoryService:
                                 f"Update at index {i} missing required field: id"
                             )
 
-                        # Prepare update dict
-                        update_dict = {}
-
-                        if "content" in update:
-                            update_dict["content"] = update["content"]
-
-                        if "tags" in update:
-                            update_dict["tags"] = update["tags"]
-
-                        if "metadata" in update:
-                            update_dict["metadata"] = update["metadata"]
-
-                        if "memory_tier" in update:
-                            update_dict["memory_tier"] = MemoryTier(update["memory_tier"])
-
-                        # Update memory
-                        memory = await self.repository.update(memory_id, update_dict, use_transaction=False)
+                        update_dict = self._build_update_dict(update)
+                        memory = await self.repository.update(
+                            memory_id, update_dict, use_transaction=False
+                        )
 
                         if memory is None:
                             raise ValueError(f"Memory not found: {memory_id}")
 
-                        # Update embedding if needed
                         if i in embedding_map:
                             await self.repository.update_embedding(
                                 memory_id, embedding_map[i]
@@ -658,30 +630,12 @@ class MemoryService:
                                     f"Update at index {i} missing required field: id"
                                 )
 
-                            # Prepare update dict
-                            update_dict = {}
-
-                            if "content" in update:
-                                update_dict["content"] = update["content"]
-
-                            if "tags" in update:
-                                update_dict["tags"] = update["tags"]
-
-                            if "metadata" in update:
-                                update_dict["metadata"] = update["metadata"]
-
-                            if "memory_tier" in update:
-                                update_dict["memory_tier"] = MemoryTier(
-                                    update["memory_tier"]
-                                )
-
-                            # Update memory
+                            update_dict = self._build_update_dict(update)
                             memory = await self.repository.update(memory_id, update_dict)
 
                             if memory is None:
                                 raise ValueError(f"Memory not found: {memory_id}")
 
-                            # Update embedding if needed
                             if i in embedding_map:
                                 await self.repository.update_embedding(
                                     memory_id, embedding_map[i]
@@ -713,28 +667,14 @@ class MemoryService:
                                 f"Update at index {i} missing required field: id"
                             )
 
-                        # Prepare update dict
-                        update_dict = {}
-
-                        if "content" in update:
-                            update_dict["content"] = update["content"]
-
-                        if "tags" in update:
-                            update_dict["tags"] = update["tags"]
-
-                        if "metadata" in update:
-                            update_dict["metadata"] = update["metadata"]
-
-                        if "memory_tier" in update:
-                            update_dict["memory_tier"] = MemoryTier(update["memory_tier"])
-
-                        # Update memory
-                        memory = await self.repository.update(memory_id, update_dict, use_transaction=False)
+                        update_dict = self._build_update_dict(update)
+                        memory = await self.repository.update(
+                            memory_id, update_dict, use_transaction=False
+                        )
 
                         if memory is None:
                             raise ValueError(f"Memory not found: {memory_id}")
 
-                        # Update embedding if needed
                         if i in embedding_map:
                             await self.repository.update_embedding(
                                 memory_id, embedding_map[i]

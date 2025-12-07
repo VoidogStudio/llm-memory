@@ -954,53 +954,50 @@ class MemoryRepository:
         Returns:
             List of duplicate groups
         """
+        # Import numpy once at the start (with fallback)
+        try:
+            import numpy as np
+            use_numpy = True
+        except ImportError:
+            np = None  # type: ignore[assignment]
+            use_numpy = False
+
+        # Check LSH availability once
+        lsh_index = None
         if use_lsh:
             from src.services.lsh_index import LSH_AVAILABLE, LSHIndex
 
-            if not LSH_AVAILABLE:
+            if LSH_AVAILABLE:
+                lsh_index = LSHIndex()
+            else:
                 use_lsh = False
 
-        # Get memories from namespace
-        cursor = await self.db.execute(
-            """
-            SELECT id FROM memories
-            WHERE namespace = ?
-            ORDER BY created_at DESC
-            LIMIT ?
-            """,
-            (namespace, limit),
-        )
-        rows = await cursor.fetchall()
-        memory_ids = [row[0] for row in rows]
+        # Batch fetch all embeddings at once (eliminates N+1 queries)
+        all_embeddings = await self.get_all_embeddings(namespace=namespace, limit=limit)
 
-        if not memory_ids:
+        if not all_embeddings:
             return []
 
-        # Build LSH index if requested
-        lsh_index = None
-        if use_lsh:
-            from src.services.lsh_index import LSHIndex
+        # Build embedding lookup dictionary
+        embedding_map: dict[str, list[float]] = dict(all_embeddings)
+        memory_ids = list(embedding_map.keys())
 
-            lsh_index = LSHIndex()
-            await lsh_index.build_index(self, namespace=namespace)
+        # Build LSH index if requested
+        if lsh_index:
+            for memory_id, embedding in all_embeddings:
+                lsh_index.add(memory_id, embedding)
 
         # Find duplicates
         duplicate_groups = []
-        processed = set()
+        processed: set[str] = set()
 
         for memory_id in memory_ids:
             if memory_id in processed:
                 continue
 
-            # Get embedding
-            cursor = await self.db.execute(
-                "SELECT vec_to_json(embedding) FROM embeddings WHERE memory_id = ?", (memory_id,)
-            )
-            row = await cursor.fetchone()
-            if not row:
+            embedding = embedding_map.get(memory_id)
+            if embedding is None:
                 continue
-
-            embedding = json.loads(row[0])
 
             # Find candidates
             if lsh_index:
@@ -1014,29 +1011,22 @@ class MemoryRepository:
                 if candidate_id == memory_id or candidate_id in processed:
                     continue
 
-                # Get candidate embedding
-                cursor = await self.db.execute(
-                    "SELECT vec_to_json(embedding) FROM embeddings WHERE memory_id = ?",
-                    (candidate_id,),
-                )
-                row = await cursor.fetchone()
-                if not row:
+                candidate_embedding = embedding_map.get(candidate_id)
+                if candidate_embedding is None:
                     continue
 
-                candidate_embedding = json.loads(row[0])
-
                 # Compute cosine similarity
-                try:
-                    import numpy as np
-
+                if use_numpy:
                     emb1 = np.array(embedding)
                     emb2 = np.array(candidate_embedding)
                     similarity = float(
                         np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2))
                     )
-                except ImportError:
+                else:
                     # Fallback without numpy
-                    dot_product = sum(a * b for a, b in zip(embedding, candidate_embedding, strict=False))
+                    dot_product = sum(
+                        a * b for a, b in zip(embedding, candidate_embedding, strict=False)
+                    )
                     norm1 = sum(a * a for a in embedding) ** 0.5
                     norm2 = sum(b * b for b in candidate_embedding) ** 0.5
                     similarity = dot_product / (norm1 * norm2) if norm1 > 0 and norm2 > 0 else 0
