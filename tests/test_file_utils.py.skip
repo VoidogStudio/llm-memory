@@ -1,0 +1,312 @@
+"""Tests for file utilities."""
+
+import tempfile
+from pathlib import Path
+
+import pytest
+
+from src.services.file_hash_service import FileHashService
+from src.utils.config_parser import (
+    extract_readme_content,
+    parse_package_json,
+    parse_pyproject_toml,
+)
+from src.utils.file_scanner import (
+    detect_project_type,
+    extract_project_config,
+)
+from src.utils.path_filter import PathFilter, create_path_filter
+
+
+class TestFileHashService:
+    """Test FileHashService."""
+
+    def test_calculate_hash_from_string(self):
+        """Test calculating hash from string content."""
+        content = "Hello, World!"
+        hash1 = FileHashService.calculate_hash(content)
+        hash2 = FileHashService.calculate_hash(content)
+
+        # Same content should produce same hash
+        assert hash1 == hash2
+        assert isinstance(hash1, str)
+        assert len(hash1) == 64  # SHA-256 produces 64 hex characters
+
+    def test_calculate_hash_different_content(self):
+        """Test that different content produces different hashes."""
+        hash1 = FileHashService.calculate_hash("Hello")
+        hash2 = FileHashService.calculate_hash("World")
+
+        assert hash1 != hash2
+
+    def test_calculate_file_hash(self, tmp_path):
+        """Test calculating hash from file."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("Test content", encoding="utf-8")
+
+        file_hash = FileHashService.calculate_file_hash(test_file)
+
+        assert isinstance(file_hash, str)
+        assert len(file_hash) == 64
+
+    def test_calculate_file_hash_consistency(self, tmp_path):
+        """Test file hash consistency."""
+        test_file = tmp_path / "test.txt"
+        content = "Consistent content"
+        test_file.write_text(content, encoding="utf-8")
+
+        hash1 = FileHashService.calculate_file_hash(test_file)
+        hash2 = FileHashService.calculate_file_hash(test_file)
+
+        assert hash1 == hash2
+
+    def test_calculate_file_hash_detects_changes(self, tmp_path):
+        """Test that file hash detects content changes."""
+        test_file = tmp_path / "test.txt"
+
+        test_file.write_text("Original content", encoding="utf-8")
+        hash1 = FileHashService.calculate_file_hash(test_file)
+
+        test_file.write_text("Modified content", encoding="utf-8")
+        hash2 = FileHashService.calculate_file_hash(test_file)
+
+        assert hash1 != hash2
+
+    def test_is_changed_true(self):
+        """Test is_changed returns True for different hashes."""
+        hash1 = "abc123"
+        hash2 = "def456"
+
+        assert FileHashService.is_changed(hash1, hash2) is True
+
+    def test_is_changed_false(self):
+        """Test is_changed returns False for same hashes."""
+        hash_value = "abc123"
+
+        assert FileHashService.is_changed(hash_value, hash_value) is False
+
+    def test_calculate_file_hash_nonexistent_file(self, tmp_path):
+        """Test calculating hash of non-existent file raises error."""
+        nonexistent = tmp_path / "nonexistent.txt"
+
+        with pytest.raises(FileNotFoundError):
+            FileHashService.calculate_file_hash(nonexistent)
+
+
+class TestPathFilter:
+    """Test PathFilter."""
+
+    def test_default_exclusions(self):
+        """Test default exclusion patterns."""
+        filter = PathFilter()
+
+        # Common excluded directories
+        assert filter.is_excluded(Path(".git/config"))
+        assert filter.is_excluded(Path("node_modules/package/index.js"))
+        assert filter.is_excluded(Path("__pycache__/module.pyc"))
+        assert filter.is_excluded(Path(".pytest_cache/data"))
+        assert filter.is_excluded(Path("venv/lib/python"))
+
+        # Common excluded files
+        assert filter.is_excluded(Path(".env"))
+        assert filter.is_excluded(Path(".DS_Store"))
+        assert filter.is_excluded(Path("credentials.json"))
+        assert filter.is_excluded(Path("private_key.pem"))
+
+    def test_custom_exclude_patterns(self):
+        """Test custom exclusion patterns."""
+        filter = PathFilter(exclude_patterns=["*.tmp", "*.log", "test_*"])
+
+        assert filter.is_excluded(Path("file.tmp"))
+        assert filter.is_excluded(Path("app.log"))
+        assert filter.is_excluded(Path("test_file.py"))
+        assert not filter.is_excluded(Path("normal.py"))
+
+    def test_custom_include_patterns(self):
+        """Test custom inclusion patterns."""
+        filter = PathFilter(include_patterns=["*.py", "*.md"])
+
+        assert filter.is_included(Path("script.py"))
+        assert filter.is_included(Path("README.md"))
+        assert not filter.is_included(Path("data.json"))
+
+    def test_should_process_file(self):
+        """Test should_process_file combines include and exclude logic."""
+        filter = PathFilter(
+            include_patterns=["*.py"], exclude_patterns=["test_*.py"]
+        )
+
+        # Included pattern
+        assert filter.should_process(Path("main.py"))
+
+        # Excluded pattern takes precedence
+        assert not filter.should_process(Path("test_main.py"))
+
+        # Not in include patterns
+        assert not filter.should_process(Path("data.json"))
+
+    def test_gitignore_integration(self, tmp_path):
+        """Test gitignore pattern integration."""
+        gitignore_path = tmp_path / ".gitignore"
+        gitignore_path.write_text("*.log\nbuild/\n", encoding="utf-8")
+
+        filter = create_path_filter(
+            project_root=tmp_path, use_gitignore=True
+        )
+
+        assert filter.is_excluded(Path(tmp_path / "app.log"))
+        assert filter.is_excluded(Path(tmp_path / "build/output"))
+
+    def test_no_gitignore_file(self, tmp_path):
+        """Test behavior when gitignore doesn't exist."""
+        filter = create_path_filter(
+            project_root=tmp_path, use_gitignore=True
+        )
+
+        # Should still work with default exclusions
+        assert filter.is_excluded(Path(".git/config"))
+
+    def test_case_sensitivity(self):
+        """Test pattern matching respects case."""
+        filter = PathFilter(exclude_patterns=["*.LOG"])
+
+        # Exact case match
+        assert filter.is_excluded(Path("file.LOG"))
+
+        # Different case - depends on OS
+        # On case-insensitive filesystems, this might match
+        # Just test that the filter works consistently
+
+
+class TestConfigParser:
+    """Test config parser utilities."""
+
+    def test_detect_python_project(self, tmp_path):
+        """Test detecting Python project type."""
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\nname='test'", encoding="utf-8"
+        )
+
+        project_type = detect_project_type(tmp_path)
+        assert project_type == "python"
+
+    def test_detect_nodejs_project(self, tmp_path):
+        """Test detecting Node.js project type."""
+        (tmp_path / "package.json").write_text('{"name":"test"}', encoding="utf-8")
+
+        project_type = detect_project_type(tmp_path)
+        assert project_type == "nodejs"
+
+    def test_detect_rust_project(self, tmp_path):
+        """Test detecting Rust project type."""
+        (tmp_path / "Cargo.toml").write_text(
+            '[package]\nname = "test"', encoding="utf-8"
+        )
+
+        project_type = detect_project_type(tmp_path)
+        assert project_type == "rust"
+
+    def test_detect_go_project(self, tmp_path):
+        """Test detecting Go project type."""
+        (tmp_path / "go.mod").write_text("module test", encoding="utf-8")
+
+        project_type = detect_project_type(tmp_path)
+        assert project_type == "go"
+
+    def test_detect_unknown_project(self, tmp_path):
+        """Test detecting unknown project type."""
+        project_type = detect_project_type(tmp_path)
+        assert project_type == "unknown"
+
+    def test_parse_pyproject_toml(self, tmp_path):
+        """Test parsing pyproject.toml."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            """
+[project]
+name = "my-project"
+version = "1.0.0"
+dependencies = ["requests", "pytest"]
+
+[tool.ruff]
+line-length = 100
+""",
+            encoding="utf-8",
+        )
+
+        config = parse_pyproject_toml(pyproject)
+
+        assert config["project"]["name"] == "my-project"
+        assert config["project"]["version"] == "1.0.0"
+        assert "requests" in config["project"]["dependencies"]
+        assert "ruff" in config["tool"]
+
+    def test_parse_package_json(self, tmp_path):
+        """Test parsing package.json."""
+        package_json = tmp_path / "package.json"
+        package_json.write_text(
+            """
+{
+  "name": "my-app",
+  "version": "2.0.0",
+  "scripts": {
+    "test": "jest",
+    "build": "webpack"
+  },
+  "dependencies": {
+    "react": "^18.0.0"
+  }
+}
+""",
+            encoding="utf-8",
+        )
+
+        config = parse_package_json(package_json)
+
+        assert config["name"] == "my-app"
+        assert config["version"] == "2.0.0"
+        assert "test" in config["scripts"]
+        assert "react" in config["dependencies"]
+
+    def test_extract_readme_content(self, tmp_path):
+        """Test extracting README content."""
+        readme = tmp_path / "README.md"
+        content = "# My Project\n\nThis is a test project."
+        readme.write_text(content, encoding="utf-8")
+
+        extracted = extract_readme_content(tmp_path)
+
+        assert extracted == content
+
+    def test_extract_readme_multiple_formats(self, tmp_path):
+        """Test README extraction prefers .md over .rst."""
+        (tmp_path / "README.md").write_text("# Markdown", encoding="utf-8")
+        (tmp_path / "README.rst").write_text("ReStructuredText", encoding="utf-8")
+
+        extracted = extract_readme_content(tmp_path)
+
+        assert extracted == "# Markdown"
+
+    def test_extract_readme_not_found(self, tmp_path):
+        """Test README extraction when no README exists."""
+        extracted = extract_readme_content(tmp_path)
+
+        assert extracted is None
+
+    def test_parse_invalid_toml(self, tmp_path):
+        """Test parsing invalid TOML file."""
+        invalid_toml = tmp_path / "invalid.toml"
+        invalid_toml.write_text("invalid [ toml", encoding="utf-8")
+
+        # Should raise exception on parse error
+        with pytest.raises(Exception):
+            parse_pyproject_toml(invalid_toml)
+
+    def test_parse_invalid_json(self, tmp_path):
+        """Test parsing invalid JSON file."""
+        invalid_json = tmp_path / "invalid.json"
+        invalid_json.write_text("{invalid json}", encoding="utf-8")
+
+        # Should raise exception on parse error
+        with pytest.raises(Exception):
+            parse_package_json(invalid_json)

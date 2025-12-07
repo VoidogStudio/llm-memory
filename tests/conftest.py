@@ -39,6 +39,10 @@ from src.services.linking_service import LinkingService
 from src.services.memory_service import MemoryService
 from src.services.namespace_service import NamespaceService
 from src.services.graph_traversal_service import GraphTraversalService
+from src.services.project_scan_service import ProjectScanService
+from src.services.session_learning_service import SessionLearningService
+from src.services.knowledge_sync_service import KnowledgeSyncService
+from src.services.staleness_service import StalenessService
 
 
 @pytest.fixture(scope="session")
@@ -61,6 +65,8 @@ def test_settings() -> Settings:
         embedding_batch_size=32,
         search_default_top_k=10,
         log_level="INFO",
+        default_namespace="default",
+        namespace_auto_detect=False,
     )
 
 
@@ -219,6 +225,61 @@ async def export_import_service(
         db=memory_db,
         embedding_service=embedding_service,
         allowed_paths=[Path(tempfile.gettempdir())],
+    )
+
+
+# Helper functions for tests
+
+
+@pytest_asyncio.fixture
+async def project_scan_service(
+    memory_service: MemoryService,
+    embedding_service: EmbeddingService,
+    namespace_service: NamespaceService,
+) -> ProjectScanService:
+    """Project scan service."""
+    return ProjectScanService(
+        memory_service=memory_service,
+        embedding_service=embedding_service,
+        namespace_service=namespace_service,
+    )
+
+
+@pytest_asyncio.fixture
+async def session_learning_service(
+    memory_service: MemoryService,
+    embedding_service: EmbeddingService,
+) -> SessionLearningService:
+    """Session learning service."""
+    return SessionLearningService(
+        memory_service=memory_service,
+        embedding_service=embedding_service,
+    )
+
+
+@pytest_asyncio.fixture
+async def knowledge_sync_service(
+    knowledge_service: KnowledgeService,
+    embedding_service: EmbeddingService,
+) -> KnowledgeSyncService:
+    """Knowledge sync service."""
+    from src.services.file_hash_service import FileHashService
+    return KnowledgeSyncService(
+        knowledge_service=knowledge_service,
+        embedding_service=embedding_service,
+        file_hash_service=FileHashService(),
+    )
+
+
+@pytest_asyncio.fixture
+async def staleness_service(
+    memory_repository: MemoryRepository,
+) -> StalenessService:
+    """Staleness service."""
+    from src.services.file_hash_service import FileHashService
+    return StalenessService(
+        memory_repository=memory_repository,
+        file_hash_service=FileHashService(),
     )
 
 

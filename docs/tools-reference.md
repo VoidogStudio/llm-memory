@@ -1,6 +1,6 @@
 # LLM Memory MCP Tools Reference
 
-LLM Memory provides 32 MCP tools that give LLMs persistent memory, knowledge base, and inter-agent communication capabilities.
+LLM Memory provides 37 MCP tools that give LLMs persistent memory, knowledge base, and inter-agent communication capabilities.
 
 ## Tool List
 
@@ -70,6 +70,20 @@ Tools for building optimal memory context within token budgets.
 | `memory_cache_stats` | Get semantic cache statistics | [Details](context-tools.md#memory_cache_stats) |
 
 Details: [Context Tools](context-tools.md)
+
+### Acquisition Tools (5 tools) **v1.6.0**
+
+Tools for automatically acquiring, syncing, and maintaining knowledge.
+
+| Tool | Description | Documentation |
+|------|-------------|---------------|
+| `project_scan` | Scan project and extract knowledge | [Details](acquisition-tools.md#project_scan) |
+| `knowledge_sync` | Sync external documentation sources | [Details](acquisition-tools.md#knowledge_sync) |
+| `session_learn` | Record session learnings | [Details](acquisition-tools.md#session_learn) |
+| `knowledge_check_staleness` | Detect stale knowledge | [Details](acquisition-tools.md#knowledge_check_staleness) |
+| `knowledge_refresh_stale` | Refresh or clean up stale knowledge | [Details](acquisition-tools.md#knowledge_refresh_stale) |
+
+Details: [Acquisition Tools](acquisition-tools.md)
 
 ### Knowledge Base (2 tools)
 
@@ -162,6 +176,36 @@ memory_cache_stats()
 memory_cache_clear()
 ```
 
+### Knowledge Acquisition Operations (v1.6.0)
+
+```python
+# Scan project and extract knowledge
+project_scan(
+    project_path="/path/to/project",
+    max_file_size_kb=200
+)
+
+# Sync external documentation
+knowledge_sync(
+    source_type="local_directory",
+    source_path="./docs",
+    category="documentation"
+)
+
+# Record session learning
+session_learn(
+    content="Resolved ImportError by adding __init__.py",
+    category="error_resolution",
+    confidence=0.9
+)
+
+# Check for stale knowledge
+knowledge_check_staleness(stale_days=14)
+
+# Refresh stale items
+knowledge_refresh_stale(action="refresh", dry_run=False)
+```
+
 ### Basic Agent Communication Operations
 
 ```python
@@ -191,26 +235,30 @@ context_share(
 ## Architecture
 
 ```
-┌───────────────────────────────────────────────────────────────────────────┐
-│                           MCP Tools Layer (32 tools)                       │
-├─────────────┬─────────────┬─────────────┬─────────────┬──────────────────┤
-│ Memory (11) │ Decay (3)   │ Linking (3) │Similarity(2)│ Context (3)      │
-│             │   v1.2.0    │   v1.2.0    │   v1.4.0    │   v1.5.0         │
-├─────────────┴─────────────┴─────────────┴─────────────┴──────────────────┤
-│  Knowledge (2)  │  Export/Import (2) v1.2.0  │  Agent Tools (6)          │
-├───────────────────────────────────────────────────────────────────────────┤
-│                           Services Layer                                   │
-│  MemoryService │ DecayService │ LinkingService │ NamespaceService v1.4.0  │
-│  ImportanceService │ ConsolidationService │ LSHIndex v1.4.0 │ AgentService│
-│  ContextBuildingService v1.5.0 │ GraphTraversalService v1.5.0             │
-│  SemanticCache v1.5.0 │ TokenCounter v1.5.0                               │
-├───────────────────────────────────────────────────────────────────────────┤
-│                          Repository Layer                                  │
-│  MemoryRepo (+ FTS5, Hybrid Search, Namespace) │ KnowledgeRepo │ AgentRepo│
-├───────────────────────────────────────────────────────────────────────────┤
-│                           Database Layer                                   │
-│      SQLite + sqlite-vec + FTS5 (Vector + Keyword) - Schema v5            │
-└───────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           MCP Tools Layer (37 tools)                        │
+├─────────────┬─────────────┬─────────────┬─────────────┬───────────────────┤
+│ Memory (11) │ Decay (3)   │ Linking (3) │Similarity(2)│ Context (3)       │
+│             │   v1.2.0    │   v1.2.0    │   v1.4.0    │   v1.5.0          │
+├─────────────┴─────────────┴─────────────┴─────────────┴───────────────────┤
+│  Acquisition (5) v1.6.0  │  Knowledge (2)  │  Export/Import (2) v1.2.0    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                            Agent Tools (6)                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                            Services Layer                                   │
+│  MemoryService │ DecayService │ LinkingService │ NamespaceService v1.4.0   │
+│  ImportanceService │ ConsolidationService │ LSHIndex v1.4.0 │ AgentService │
+│  ContextBuildingService v1.5.0 │ GraphTraversalService v1.5.0              │
+│  SemanticCache v1.5.0 │ TokenCounter v1.5.0                                │
+│  ProjectScanService v1.6.0 │ KnowledgeSyncService v1.6.0                   │
+│  SessionLearningService v1.6.0 │ StalenessService v1.6.0                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                           Repository Layer                                  │
+│  MemoryRepo (+ FTS5, Hybrid Search, Namespace) │ KnowledgeRepo │ AgentRepo │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                            Database Layer                                   │
+│       SQLite + sqlite-vec + FTS5 (Vector + Keyword) - Schema v5            │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -295,6 +343,7 @@ All tools return a unified error format:
 - [Linking Tools Details](linking-tools.md) (v1.2.0)
 - [Similarity Tools Details](similarity-tools.md) (v1.4.0)
 - [Context Tools Details](context-tools.md) (v1.5.0)
+- [Acquisition Tools Details](acquisition-tools.md) (v1.6.0)
 - [Knowledge Tools Details](knowledge-tools.md)
 - [Export/Import Tools Details](export-import-tools.md) (v1.2.0)
 - [Agent Tools Details](agent-tools.md)

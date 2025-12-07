@@ -14,6 +14,11 @@ Persistent memory and knowledge management for LLMs via Model Context Protocol (
 - **Auto-summarization** - Compress long memories to fit token budget (v1.5.0)
 - **Graph Traversal** - Collect related memories by following links (v1.5.0)
 - **Semantic Cache** - Cache similar query results for performance (v1.5.0)
+- **Auto Knowledge Acquisition** - Auto-scan projects, sync docs, learn from sessions (v1.6.0)
+- **Project Scanning** - Automatic detection and import of project structure and config (v1.6.0)
+- **Knowledge Synchronization** - Continuous sync of external documentation sources (v1.6.0)
+- **Session Learning** - Automatic extraction and deduplication of learning content (v1.6.0)
+- **Staleness Detection** - Identify and refresh outdated knowledge (v1.6.0)
 - **Multi-Project Namespace** - Logical separation of memories per project (v1.4.0)
 - **Auto-detection** - Automatic namespace from git URL or directory name (v1.4.0)
 - **Cross-project Sharing** - Share knowledge via `shared` namespace (v1.4.0)
@@ -103,7 +108,7 @@ Create `.mcp.json` in your project root:
 }
 ```
 
-## MCP Tools (32)
+## MCP Tools (37)
 
 ### Memory Management (11)
 
@@ -144,6 +149,14 @@ Create `.mcp.json` in your project root:
 | `memory_similar` | Find semantically similar memories |
 | `memory_deduplicate` | Detect and merge duplicate memories |
 
+### Context Building (3) - v1.5.0
+
+| Tool | Description |
+|------|-------------|
+| `memory_context_build` | Build optimal memory context within token budget |
+| `memory_cache_clear` | Clear semantic cache for invalidation |
+| `memory_cache_stats` | Get semantic cache statistics |
+
 ### Knowledge Base (2)
 
 | Tool | Description |
@@ -168,6 +181,16 @@ Create `.mcp.json` in your project root:
 | `agent_receive_messages` | Receive and manage messages |
 | `context_share` | Share context with access control |
 | `context_read` | Read shared context |
+
+### Knowledge Acquisition (5) - v1.6.0
+
+| Tool | Description |
+|------|-------------|
+| `project_scan` | Auto-scan project structure, config, and documentation |
+| `knowledge_sync` | Sync external documentation sources with change detection |
+| `session_learn` | Record and deduplicate session learning content |
+| `knowledge_check_staleness` | Detect stale or outdated knowledge |
+| `knowledge_refresh_stale` | Update, archive, or delete stale knowledge |
 
 ## Configuration
 
@@ -532,6 +555,56 @@ context_share(
 
 # Read shared context
 context_read(key="current_task", agent_id="coder")
+```
+
+### Knowledge Acquisition (v1.6.0)
+
+```python
+# Auto-scan project structure, config, and docs
+project_scan(
+    path="/path/to/project",
+    detect_python=True,
+    include_readme=True,
+    include_config=True,
+    namespace="my-project"
+)
+
+# Sync external documentation
+knowledge_sync(
+    source_path="/path/to/docs",
+    sync_mode="incremental",  # incremental or full
+    namespace="my-project",
+    tags=["synced-docs"]
+)
+
+# Record learning from session
+session_learn(
+    category="error_resolution",  # error_resolution, design_decision, best_practice, user_preference
+    content="Resolved timeout issue by increasing connection pool size",
+    source="session",
+    tags=["performance", "database"]
+)
+
+# Check for stale knowledge
+knowledge_check_staleness(
+    namespace="my-project",
+    days_threshold=30,
+    check_condition="OR"  # check if modified OR last_accessed > 30 days ago
+)
+
+# Refresh stale knowledge
+knowledge_refresh_stale(
+    memory_ids=["uuid-1", "uuid-2"],
+    action="archive",  # archive, update, or delete
+    dry_run=True  # preview first
+)
+
+# Execute refresh
+knowledge_refresh_stale(
+    memory_ids=["uuid-1", "uuid-2"],
+    action="archive",
+    dry_run=False
+)
 ```
 
 ## Architecture

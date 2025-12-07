@@ -290,6 +290,44 @@ class MemoryRepository:
 
         return deleted_ids
 
+    async def list_all(
+        self,
+        namespace: str | None = None,
+        limit: int = 1000,
+    ) -> list[Memory]:
+        """List all memories with optional namespace filter.
+
+        Args:
+            namespace: Target namespace filter (None for all namespaces)
+            limit: Maximum results
+
+        Returns:
+            List of memory objects
+        """
+        # Build query based on namespace filter
+        if namespace:
+            query = """
+                SELECT * FROM memories
+                WHERE namespace = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """
+            params = (namespace, limit)
+        else:
+            query = """
+                SELECT * FROM memories
+                ORDER BY created_at DESC
+                LIMIT ?
+            """
+            params = (limit,)
+
+        cursor = await self.db.execute(query, params)
+        rows = await cursor.fetchall()
+
+        memories = [self._row_to_memory(row) for row in rows]
+
+        return memories
+
     async def find_by_filters(
         self,
         memory_tier: MemoryTier | None = None,

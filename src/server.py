@@ -19,14 +19,20 @@ from src.services.context_building_service import ContextBuildingService
 from src.services.decay_service import DecayService
 from src.services.embedding_service import EmbeddingService
 from src.services.export_import_service import ExportImportService
+from src.services.file_hash_service import FileHashService
 from src.services.graph_traversal_service import GraphTraversalService
 from src.services.importance_service import ImportanceService
 from src.services.knowledge_service import KnowledgeService
+from src.services.knowledge_sync_service import KnowledgeSyncService
 from src.services.linking_service import LinkingService
 from src.services.memory_service import MemoryService
 from src.services.namespace_service import NamespaceService
+from src.services.project_scan_service import ProjectScanService
 from src.services.semantic_cache import SemanticCache
+from src.services.session_learning_service import SessionLearningService
+from src.services.staleness_service import StalenessService
 from src.tools import (
+    acquisition_tools,
     agent_tools,
     batch_tools,
     consolidation_tools,
@@ -56,6 +62,11 @@ namespace_service: NamespaceService | None = None
 context_building_service: ContextBuildingService | None = None
 graph_traversal_service: GraphTraversalService | None = None
 semantic_cache: SemanticCache | None = None
+# v1.6.0 Auto Knowledge Acquisition services
+project_scan_service: ProjectScanService | None = None
+knowledge_sync_service: KnowledgeSyncService | None = None
+session_learning_service: SessionLearningService | None = None
+staleness_service: StalenessService | None = None
 db: Database | None = None
 
 # Background tasks
@@ -68,7 +79,7 @@ async def initialize_services(settings: Settings) -> None:
     Args:
         settings: Application settings
     """
-    global memory_service, agent_service, knowledge_service, importance_service, consolidation_service, decay_service, linking_service, export_import_service, namespace_service, context_building_service, graph_traversal_service, semantic_cache, db
+    global memory_service, agent_service, knowledge_service, importance_service, consolidation_service, decay_service, linking_service, export_import_service, namespace_service, context_building_service, graph_traversal_service, semantic_cache, project_scan_service, knowledge_sync_service, session_learning_service, staleness_service, db
 
     # Initialize database
     db = Database(settings.database_path, settings.embedding_dimensions)
@@ -125,6 +136,31 @@ async def initialize_services(settings: Settings) -> None:
         cache=semantic_cache,
         embedding_service=embedding_service,
         token_buffer_ratio=settings.token_buffer_ratio,
+    )
+
+    # Initialize v1.6.0 Auto Knowledge Acquisition services
+    file_hash_service = FileHashService()
+
+    project_scan_service = ProjectScanService(
+        memory_service=memory_service,
+        embedding_service=embedding_service,
+        namespace_service=namespace_service,
+    )
+
+    knowledge_sync_service = KnowledgeSyncService(
+        knowledge_service=knowledge_service,
+        embedding_service=embedding_service,
+        file_hash_service=file_hash_service,
+    )
+
+    session_learning_service = SessionLearningService(
+        memory_service=memory_service,
+        embedding_service=embedding_service,
+    )
+
+    staleness_service = StalenessService(
+        memory_repository=memory_repo,
+        file_hash_service=file_hash_service,
     )
 
     # Start background tasks
@@ -974,6 +1010,160 @@ async def memory_cache_stats() -> dict[str, Any]:
     if not semantic_cache:
         raise RuntimeError("Services not initialized")
     return await context_tools.memory_cache_stats(semantic_cache)
+
+
+# Auto Knowledge Acquisition Tools (v1.6.0)
+@mcp.tool()
+async def project_scan(
+    project_path: str,
+    namespace: str | None = None,
+    include_patterns: list[str] | None = None,
+    exclude_patterns: list[str] | None = None,
+    max_file_size_kb: int = 100,
+    force_rescan: bool = False,
+) -> dict[str, Any]:
+    """Scan a project directory and extract knowledge automatically.
+
+    Args:
+        project_path: Path to project directory to scan
+        namespace: Target namespace (default: project name)
+        include_patterns: Additional file patterns to include (gitignore format)
+        exclude_patterns: Additional file patterns to exclude (gitignore format)
+        max_file_size_kb: Maximum file size to process in KB
+        force_rescan: Force rescan even if already scanned
+
+    Returns:
+        Scan result with statistics and detected configuration
+    """
+    if not project_scan_service:
+        raise RuntimeError("Services not initialized")
+    return await acquisition_tools.project_scan(
+        project_scan_service, project_path, namespace, include_patterns, exclude_patterns, max_file_size_kb, force_rescan
+    )
+
+
+@mcp.tool()
+async def knowledge_sync(
+    source_type: str,
+    source_path: str,
+    namespace: str | None = None,
+    category: str = "external_docs",
+    include_patterns: list[str] | None = None,
+    exclude_patterns: list[str] | None = None,
+    chunk_size: int = 500,
+    chunk_overlap: int = 50,
+    update_mode: str = "smart",
+) -> dict[str, Any]:
+    """Sync knowledge from external documentation sources.
+
+    Args:
+        source_type: Source type (local_file/local_directory/url/github_repo)
+        source_path: Path or URL to the source
+        namespace: Target namespace
+        category: Document category for organization
+        include_patterns: File patterns to include (for directories)
+        exclude_patterns: File patterns to exclude (for directories)
+        chunk_size: Characters per chunk for processing
+        chunk_overlap: Overlap between chunks
+        update_mode: Update mode (smart=only changed, full=all)
+
+    Returns:
+        Sync result with statistics and processed documents
+    """
+    if not knowledge_sync_service:
+        raise RuntimeError("Services not initialized")
+    return await acquisition_tools.knowledge_sync(
+        knowledge_sync_service, source_type, source_path, namespace, category, include_patterns, exclude_patterns, chunk_size, chunk_overlap, update_mode
+    )
+
+
+@mcp.tool()
+async def session_learn(
+    content: str,
+    category: str,
+    context: str | None = None,
+    confidence: float = 0.8,
+    namespace: str | None = None,
+    related_files: list[str] | None = None,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    """Record learning from the current session.
+
+    Args:
+        content: Learning content to record
+        category: Learning category (error_resolution/design_decision/best_practice/user_preference)
+        context: Additional context about the learning
+        confidence: Confidence score (0.0-1.0)
+        namespace: Target namespace
+        related_files: List of related file paths
+        tags: Additional tags for categorization
+
+    Returns:
+        Learning result with similar learnings and action taken
+    """
+    if not session_learning_service:
+        raise RuntimeError("Services not initialized")
+    return await acquisition_tools.session_learn(
+        session_learning_service, content, category, context, confidence, namespace, related_files, tags
+    )
+
+
+@mcp.tool()
+async def knowledge_check_staleness(
+    namespace: str | None = None,
+    stale_days: int = 30,
+    check_source_changes: bool = True,
+    categories: list[str] | None = None,
+    include_auto_scan: bool = True,
+    include_sync: bool = True,
+    include_learning: bool = True,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """Check for stale or outdated knowledge.
+
+    Args:
+        namespace: Target namespace (None for all)
+        stale_days: Days threshold for staleness detection
+        check_source_changes: Whether to check if source files changed
+        categories: Specific categories to check (None for all)
+        include_auto_scan: Include project scan results
+        include_sync: Include synced knowledge
+        include_learning: Include session learnings
+        limit: Maximum number of results to return
+
+    Returns:
+        Staleness result with statistics, stale items, and recommendations
+    """
+    if not staleness_service:
+        raise RuntimeError("Services not initialized")
+    return await acquisition_tools.knowledge_check_staleness(
+        staleness_service, namespace, stale_days, check_source_changes, categories, include_auto_scan, include_sync, include_learning, limit
+    )
+
+
+@mcp.tool()
+async def knowledge_refresh_stale(
+    memory_ids: list[str] | None = None,
+    namespace: str | None = None,
+    action: str = "refresh",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Refresh or clean up stale knowledge.
+
+    Args:
+        memory_ids: Specific memory IDs to refresh (None for all stale)
+        namespace: Target namespace
+        action: Action to take (refresh/archive/delete)
+        dry_run: Preview mode - show what would happen without changes
+
+    Returns:
+        Refresh result with affected items and action taken
+    """
+    if not staleness_service:
+        raise RuntimeError("Services not initialized")
+    return await acquisition_tools.knowledge_refresh_stale(
+        staleness_service, memory_ids, namespace, action, dry_run
+    )
 
 
 def create_server() -> FastMCP:

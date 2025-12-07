@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2025-12-07
+
+### Added
+
+- **project_scan** (MCP tool) - Auto-scan project structure, configuration, and documentation
+  - Automatic Python project detection (pyproject.toml, setup.py)
+  - .gitignore pattern automatic application
+  - Configuration file, README, and documentation extraction
+  - Project metadata detection (name, version, description)
+
+- **knowledge_sync** (MCP tool) - Sync external documentation sources
+  - Local file and directory synchronization
+  - Hash-based change detection for incremental sync
+  - Support for bulk operations
+  - Duplicate prevention across namespaces
+
+- **session_learn** (MCP tool) - Record and deduplicate session learning content
+  - 4 categories: error_resolution, design_decision, best_practice, user_preference
+  - Automatic similarity detection for deduplication
+  - Duplicate prevention mechanism
+  - Tagging and filtering by category
+
+- **knowledge_check_staleness** (MCP tool) - Detect stale or outdated knowledge
+  - Source file change detection
+  - Access time-based staleness judgment
+  - AND/OR condition support
+  - Configurable freshness threshold
+
+- **knowledge_refresh_stale** (MCP tool) - Update, archive, or delete stale knowledge
+  - Stale memory refresh from source
+  - Archival with metadata preservation
+  - Safe deletion with dry-run support
+  - Batch operations
+
+### Changed
+
+- **Configuration** (`src/config/settings.py`)
+  - Added `default_namespace` for consistent namespace handling
+  - Added `namespace_auto_detect` toggle
+  - Added acquisition service settings: `project_scan_enabled`, `knowledge_sync_interval_seconds`
+  - Added staleness detection settings: `staleness_threshold_days`, `staleness_enable`
+
+- **Server** (`src/server.py`)
+  - Added acquisition tools registration
+  - Integrated session learning service
+
+- **Memory Repository** (`src/db/repositories/memory_repository.py`)
+  - Added `source_path` field support for knowledge tracking
+  - Added staleness query methods
+
+### Dependencies
+
+- Added `pathspec>=0.12.0` for .gitignore pattern matching
+- Added `aiofiles>=24.1.0` for async file operations
+
+### Technical Details
+
+- 359 total tests (356 pass, 3 skipped)
+- New modules: `project_scan_service.py`, `knowledge_sync_service.py`, `session_learning_service.py`, `staleness_service.py`
+- New models: `acquisition.py` with 18 Pydantic classes
+- New utilities: `file_scanner.py`, `config_parser.py`, `path_filter.py`, `file_hash_service.py`
+- Test coverage: 66%
+
+---
+
 ## [1.5.0] - 2025-12-07
 
 ### Added
