@@ -132,6 +132,56 @@ class Settings(BaseSettings):
         description="Enable automatic namespace detection from project context",
     )
 
+    # Semantic Cache settings
+    cache_enabled: bool = Field(
+        default=True,
+        description="Enable semantic cache for query results",
+    )
+    cache_max_size: int = Field(
+        default=1000,
+        ge=100,
+        le=10000,
+        description="Maximum number of cache entries",
+    )
+    cache_ttl_seconds: int = Field(
+        default=3600,
+        ge=60,
+        le=86400,
+        description="Cache entry time-to-live in seconds",
+    )
+    cache_similarity_threshold: float = Field(
+        default=0.95,
+        ge=0.8,
+        le=1.0,
+        description="Similarity threshold for cache hit",
+    )
+
+    # Token Counter settings
+    token_counter_model: str = Field(
+        default="gpt-4",
+        description="Model name for tiktoken token counting",
+    )
+    token_buffer_ratio: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=0.3,
+        description="Safety buffer ratio for token budget (0.1 = 10%)",
+    )
+
+    # Graph Traversal settings
+    graph_max_depth: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Default maximum depth for graph traversal",
+    )
+    graph_max_results: int = Field(
+        default=50,
+        ge=1,
+        le=500,
+        description="Default maximum results from graph traversal",
+    )
+
     model_config = SettingsConfigDict(
         env_prefix="LLM_MEMORY_", env_file=".env", env_file_encoding="utf-8"
     )

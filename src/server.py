@@ -15,18 +15,22 @@ from src.embeddings.local import LocalEmbeddingProvider
 from src.embeddings.openai import OpenAIEmbeddingProvider
 from src.services.agent_service import AgentService
 from src.services.consolidation_service import ConsolidationService
+from src.services.context_building_service import ContextBuildingService
 from src.services.decay_service import DecayService
 from src.services.embedding_service import EmbeddingService
 from src.services.export_import_service import ExportImportService
+from src.services.graph_traversal_service import GraphTraversalService
 from src.services.importance_service import ImportanceService
 from src.services.knowledge_service import KnowledgeService
 from src.services.linking_service import LinkingService
 from src.services.memory_service import MemoryService
 from src.services.namespace_service import NamespaceService
+from src.services.semantic_cache import SemanticCache
 from src.tools import (
     agent_tools,
     batch_tools,
     consolidation_tools,
+    context_tools,
     decay_tools,
     export_import_tools,
     importance_tools,
@@ -49,6 +53,9 @@ decay_service: DecayService | None = None
 linking_service: LinkingService | None = None
 export_import_service: ExportImportService | None = None
 namespace_service: NamespaceService | None = None
+context_building_service: ContextBuildingService | None = None
+graph_traversal_service: GraphTraversalService | None = None
+semantic_cache: SemanticCache | None = None
 db: Database | None = None
 
 # Background tasks
@@ -61,7 +68,7 @@ async def initialize_services(settings: Settings) -> None:
     Args:
         settings: Application settings
     """
-    global memory_service, agent_service, knowledge_service, importance_service, consolidation_service, decay_service, linking_service, export_import_service, namespace_service, db
+    global memory_service, agent_service, knowledge_service, importance_service, consolidation_service, decay_service, linking_service, export_import_service, namespace_service, context_building_service, graph_traversal_service, semantic_cache, db
 
     # Initialize database
     db = Database(settings.database_path, settings.embedding_dimensions)
@@ -98,6 +105,27 @@ async def initialize_services(settings: Settings) -> None:
     decay_service = DecayService(memory_repo, db)
     linking_service = LinkingService(memory_repo, db)
     export_import_service = ExportImportService(memory_repo, knowledge_repo, agent_repo, db, embedding_service)
+
+    # Initialize context building services
+    graph_traversal_service = GraphTraversalService(
+        linking_service=linking_service,
+        repository=memory_repo,
+    )
+
+    semantic_cache = SemanticCache(
+        max_size=settings.cache_max_size,
+        ttl_seconds=settings.cache_ttl_seconds,
+        embedding_service=embedding_service,
+        similarity_threshold=settings.cache_similarity_threshold,
+    )
+
+    context_building_service = ContextBuildingService(
+        memory_service=memory_service,
+        graph_service=graph_traversal_service,
+        cache=semantic_cache,
+        embedding_service=embedding_service,
+        token_buffer_ratio=settings.token_buffer_ratio,
+    )
 
     # Start background tasks
     await start_background_tasks()
@@ -871,6 +899,81 @@ async def database_import(
     if not export_import_service:
         raise RuntimeError("Services not initialized")
     return await export_import_tools.database_import(export_import_service, input_path, mode, on_conflict, regenerate_embeddings)
+
+
+# Context Building Tools
+@mcp.tool()
+async def memory_context_build(
+    query: str,
+    token_budget: int,
+    top_k: int = 20,
+    include_related: bool = True,
+    max_depth: int = 2,
+    auto_summarize: bool = True,
+    min_similarity: float = 0.5,
+    namespace: str | None = None,
+    use_cache: bool = True,
+    strategy: str = "relevance",
+) -> dict[str, Any]:
+    """Build optimal memory context within token budget.
+
+    Args:
+        query: Search query text
+        token_budget: Maximum tokens for context (100-128000)
+        top_k: Number of candidate memories (1-100)
+        include_related: Include related memories via graph traversal
+        max_depth: Maximum traversal depth for related memories (1-5)
+        auto_summarize: Automatically summarize large memories
+        min_similarity: Minimum similarity threshold (0.0-1.0)
+        namespace: Target namespace (default: auto-detect)
+        use_cache: Use semantic cache for results
+        strategy: Memory selection strategy (relevance/recency/importance/graph)
+
+    Returns:
+        Context result with memories, token counts, and metadata
+    """
+    if not context_building_service:
+        raise RuntimeError("Services not initialized")
+    return await context_tools.memory_context_build(
+        context_building_service,
+        query,
+        token_budget,
+        top_k,
+        include_related,
+        max_depth,
+        auto_summarize,
+        min_similarity,
+        namespace,
+        use_cache,
+        strategy,
+    )
+
+
+@mcp.tool()
+async def memory_cache_clear(pattern: str | None = None) -> dict[str, Any]:
+    """Clear the semantic cache.
+
+    Args:
+        pattern: Optional pattern to match cache entries (None = clear all)
+
+    Returns:
+        Number of cleared entries and timestamp
+    """
+    if not semantic_cache:
+        raise RuntimeError("Services not initialized")
+    return await context_tools.memory_cache_clear(semantic_cache, pattern)
+
+
+@mcp.tool()
+async def memory_cache_stats() -> dict[str, Any]:
+    """Get semantic cache statistics.
+
+    Returns:
+        Cache statistics including hit rate, entry count, and memory usage
+    """
+    if not semantic_cache:
+        raise RuntimeError("Services not initialized")
+    return await context_tools.memory_cache_stats(semantic_cache)
 
 
 def create_server() -> FastMCP:

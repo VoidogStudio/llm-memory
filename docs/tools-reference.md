@@ -1,6 +1,6 @@
 # LLM Memory MCP Tools Reference
 
-LLM Memory provides 29 MCP tools that give LLMs persistent memory, knowledge base, and inter-agent communication capabilities.
+LLM Memory provides 32 MCP tools that give LLMs persistent memory, knowledge base, and inter-agent communication capabilities.
 
 ## Tool List
 
@@ -58,6 +58,18 @@ Tools for finding similar and duplicate memories.
 | `memory_deduplicate` | Detect and merge duplicate memories | [Details](similarity-tools.md#memory_deduplicate) |
 
 Details: [Similarity Tools](similarity-tools.md)
+
+### Context Tools (3 tools) **v1.5.0**
+
+Tools for building optimal memory context within token budgets.
+
+| Tool | Description | Documentation |
+|------|-------------|---------------|
+| `memory_context_build` | Build optimal memory context within token budget | [Details](context-tools.md#memory_context_build) |
+| `memory_cache_clear` | Clear the semantic cache | [Details](context-tools.md#memory_cache_clear) |
+| `memory_cache_stats` | Get semantic cache statistics | [Details](context-tools.md#memory_cache_stats) |
+
+Details: [Context Tools](context-tools.md)
 
 ### Knowledge Base (2 tools)
 
@@ -132,6 +144,24 @@ knowledge_import(
 knowledge_query(query="authentication")
 ```
 
+### Context Building Operations (v1.5.0)
+
+```python
+# Build optimal context within token budget
+memory_context_build(
+    query="user preferences",
+    token_budget=4000,
+    include_related=True,
+    auto_summarize=True
+)
+
+# Get cache statistics
+memory_cache_stats()
+
+# Clear cache
+memory_cache_clear()
+```
+
 ### Basic Agent Communication Operations
 
 ```python
@@ -162,16 +192,18 @@ context_share(
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
-│                           MCP Tools Layer (29 tools)                       │
+│                           MCP Tools Layer (32 tools)                       │
 ├─────────────┬─────────────┬─────────────┬─────────────┬──────────────────┤
-│ Memory (11) │ Decay (3)   │ Linking (3) │Similarity(2)│ Knowledge (2)    │
-│             │   v1.2.0    │   v1.2.0    │   v1.4.0    │                  │
+│ Memory (11) │ Decay (3)   │ Linking (3) │Similarity(2)│ Context (3)      │
+│             │   v1.2.0    │   v1.2.0    │   v1.4.0    │   v1.5.0         │
 ├─────────────┴─────────────┴─────────────┴─────────────┴──────────────────┤
-│               Export/Import (2) v1.2.0  │  Agent Tools (6)               │
+│  Knowledge (2)  │  Export/Import (2) v1.2.0  │  Agent Tools (6)          │
 ├───────────────────────────────────────────────────────────────────────────┤
 │                           Services Layer                                   │
 │  MemoryService │ DecayService │ LinkingService │ NamespaceService v1.4.0  │
 │  ImportanceService │ ConsolidationService │ LSHIndex v1.4.0 │ AgentService│
+│  ContextBuildingService v1.5.0 │ GraphTraversalService v1.5.0             │
+│  SemanticCache v1.5.0 │ TokenCounter v1.5.0                               │
 ├───────────────────────────────────────────────────────────────────────────┤
 │                          Repository Layer                                  │
 │  MemoryRepo (+ FTS5, Hybrid Search, Namespace) │ KnowledgeRepo │ AgentRepo│
@@ -262,6 +294,7 @@ All tools return a unified error format:
 - [Decay Tools Details](decay-tools.md) (v1.2.0)
 - [Linking Tools Details](linking-tools.md) (v1.2.0)
 - [Similarity Tools Details](similarity-tools.md) (v1.4.0)
+- [Context Tools Details](context-tools.md) (v1.5.0)
 - [Knowledge Tools Details](knowledge-tools.md)
 - [Export/Import Tools Details](export-import-tools.md) (v1.2.0)
 - [Agent Tools Details](agent-tools.md)

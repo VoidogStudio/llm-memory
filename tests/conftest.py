@@ -38,6 +38,7 @@ from src.services.knowledge_service import KnowledgeService
 from src.services.linking_service import LinkingService
 from src.services.memory_service import MemoryService
 from src.services.namespace_service import NamespaceService
+from src.services.graph_traversal_service import GraphTraversalService
 
 
 @pytest.fixture(scope="session")
@@ -187,6 +188,17 @@ async def linking_service(
 ) -> LinkingService:
     """Linking service."""
     return LinkingService(repository=memory_repository, db=memory_db)
+
+
+@pytest_asyncio.fixture
+async def graph_traversal_service(
+    linking_service: LinkingService, memory_repository: MemoryRepository
+) -> GraphTraversalService:
+    """Graph traversal service."""
+    return GraphTraversalService(
+        linking_service=linking_service,
+        repository=memory_repository,
+    )
 
 
 @pytest_asyncio.fixture

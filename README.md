@@ -10,6 +10,10 @@ Persistent memory and knowledge management for LLMs via Model Context Protocol (
 - **Semantic Search** - Vector similarity search with sqlite-vec (cosine distance)
 - **Hybrid Search** - Combine keyword (FTS5) and semantic search
 - **Multi-Tier Memory** - Short-term (with TTL), long-term, and working memory
+- **Intelligent Context** - Build optimal memory context within token budget (v1.5.0)
+- **Auto-summarization** - Compress long memories to fit token budget (v1.5.0)
+- **Graph Traversal** - Collect related memories by following links (v1.5.0)
+- **Semantic Cache** - Cache similar query results for performance (v1.5.0)
 - **Multi-Project Namespace** - Logical separation of memories per project (v1.4.0)
 - **Auto-detection** - Automatic namespace from git URL or directory name (v1.4.0)
 - **Cross-project Sharing** - Share knowledge via `shared` namespace (v1.4.0)
@@ -99,7 +103,7 @@ Create `.mcp.json` in your project root:
 }
 ```
 
-## MCP Tools (29)
+## MCP Tools (32)
 
 ### Memory Management (11)
 

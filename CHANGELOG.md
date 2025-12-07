@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2025-12-07
+
+### Added
+
+- **memory_context_build** (MCP tool) - Build optimal memory context within token budget
+  - Combines semantic search with related memory discovery
+  - Automatic token counting with tiktoken (optional) or fallback estimation
+  - Multiple sorting strategies: `relevance`, `importance`, `recency`
+  - Configurable token buffer ratio (default 10%)
+
+- **Auto-summarization** - Compress long memories to fit token budget
+  - Token-aware extractive summarization
+  - Preserves key information while reducing size
+  - Integrated into context building workflow
+
+- **Graph Traversal** - Collect related memories by following links
+  - BFS (Breadth-First Search) algorithm for link traversal
+  - Configurable max depth and max results
+  - Link type filtering support
+  - Circular reference detection
+
+- **Semantic Cache** - Cache similar query results for performance
+  - LSH-based similarity matching for cache lookup
+  - Configurable TTL and max cache size
+  - LRU eviction when cache is full
+  - `memory_cache_clear` tool for cache invalidation
+  - `memory_cache_stats` tool for monitoring
+
+### Changed
+
+- **Configuration** (`src/config/settings.py`)
+  - Added cache settings: `cache_enabled`, `cache_max_size`, `cache_ttl_seconds`, `cache_similarity_threshold`
+  - Added token settings: `token_counter_model`, `token_buffer_ratio`
+  - Added graph settings: `graph_max_depth`, `graph_max_results`
+
+- **Summarization** (`src/utils/summarization.py`)
+  - Added `extractive_summary_by_tokens()` for token-based summarization
+  - CJK-aware token estimation
+
+### Technical Details
+
+- 295 total tests (295 pass, 3 skipped)
+- New modules: `token_counter.py`, `graph_traversal_service.py`, `semantic_cache.py`, `context_building_service.py`, `context_tools.py`
+- New model: `context.py` with `ContextMemory`, `ContextResult`, `CacheEntry`, `CacheStats`
+- Optional dependency: `tiktoken>=0.5.0` for accurate token counting
+- Test coverage: 69%
+
+---
+
 ## [1.4.1] - 2025-12-07
 
 ### Changed
@@ -338,13 +387,6 @@ Initial public release.
 
 ## Roadmap
 
-### v1.5.0 - Intelligent Context
-
-- **memory_context_build** - Build optimal memory set within token budget
-- **Auto-summarization** - Compress long memories to specified token count
-- **Graph traversal** - Collect related memories by following links
-- **Semantic cache** - Cache similar query results and LLM responses
-
 ### v1.6.0 - Auto Knowledge Acquisition
 
 - **Project scan** - Auto-import README, docs/, code comments
@@ -364,7 +406,8 @@ Initial public release.
 
 ---
 
-[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/VoidogStudio/llm-memory/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.2.0...v1.3.0
