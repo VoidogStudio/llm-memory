@@ -14,11 +14,13 @@ class EmbeddingService:
         """
         self.provider = provider
 
-    async def generate(self, text: str) -> list[float]:
+    async def generate(self, text: str, *, is_query: bool = False) -> list[float]:
         """Generate embedding for a single text.
 
         Args:
             text: Input text
+            is_query: True for search queries, False for documents/passages.
+                      Some models (like E5) require different prefixes.
 
         Returns:
             Embedding vector
@@ -26,13 +28,17 @@ class EmbeddingService:
         Raises:
             ValueError: If text is empty
         """
-        return await self.provider.embed(text)
+        return await self.provider.embed(text, is_query=is_query)
 
-    async def generate_batch(self, texts: list[str]) -> list[list[float]]:
+    async def generate_batch(
+        self, texts: list[str], *, is_query: bool = False
+    ) -> list[list[float]]:
         """Generate embeddings for multiple texts.
 
         Args:
             texts: List of input texts
+            is_query: True for search queries, False for documents/passages.
+                      Some models (like E5) require different prefixes.
 
         Returns:
             List of embedding vectors
@@ -40,7 +46,7 @@ class EmbeddingService:
         Raises:
             ValueError: If texts list is empty
         """
-        return await self.provider.embed_batch(texts)
+        return await self.provider.embed_batch(texts, is_query=is_query)
 
     def dimensions(self) -> int:
         """Get embedding vector dimensions.

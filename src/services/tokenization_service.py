@@ -1,6 +1,7 @@
 """Tokenization service for FTS5 support."""
 
 import logging
+import re
 import threading
 from typing import TYPE_CHECKING
 
@@ -8,6 +9,12 @@ if TYPE_CHECKING:
     from sudachipy import Tokenizer
 
 logger = logging.getLogger(__name__)
+
+# Regex pattern for CJK (Chinese, Japanese, Korean) characters
+# Includes: Hiragana, Katakana, CJK Unified Ideographs, Hangul
+CJK_PATTERN = re.compile(
+    r"[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]"
+)
 
 
 class TokenizationService:
@@ -41,7 +48,7 @@ class TokenizationService:
         try:
             from sudachipy import Dictionary
 
-            self._tokenizer = Dictionary(dict_type="core").create()
+            self._tokenizer = Dictionary(dict="core").create()
             self._has_sudachipy = True
             logger.info("SudachiPy initialized successfully")
         except ImportError:
@@ -56,26 +63,41 @@ class TokenizationService:
         """Check if Japanese tokenization is available."""
         return self._has_sudachipy
 
-    def tokenize(self, text: str) -> str:
-        """Tokenize text for FTS5 storage/search.
+    def _contains_cjk(self, text: str) -> bool:
+        """Check if text contains CJK (Chinese, Japanese, Korean) characters.
 
         Args:
             text: Input text
 
         Returns:
-            Tokenized text (space-separated tokens)
+            True if text contains CJK characters
+        """
+        return bool(CJK_PATTERN.search(text))
+
+    def tokenize(self, text: str) -> str:
+        """Tokenize text for FTS5 storage/search.
+
+        Only uses SudachiPy for text containing CJK characters.
+        For pure ASCII/Latin text, returns original text to let
+        unicode61 tokenizer handle it consistently.
+
+        Args:
+            text: Input text
+
+        Returns:
+            Tokenized text (space-separated tokens for CJK, original otherwise)
         """
         if not text:
             return ""
 
-        if self._has_sudachipy and self._tokenizer:
+        # Only use SudachiPy for CJK text to avoid breaking English tokenization
+        if self._has_sudachipy and self._tokenizer and self._contains_cjk(text):
             from sudachipy import SplitMode
 
             tokens = self._tokenizer.tokenize(text, SplitMode.C)
             return " ".join([t.surface() for t in tokens])
         else:
-            # Fallback: return original text
-            # unicode61 tokenizer will handle it
+            # Return original text - unicode61 tokenizer will handle it
             return text
 
     def tokenize_query(self, query: str) -> str:

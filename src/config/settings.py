@@ -30,7 +30,8 @@ class Settings(BaseSettings):
         default="local", description="Embedding provider to use"
     )
     embedding_model: str = Field(
-        default="all-MiniLM-L6-v2", description="Embedding model name"
+        default="intfloat/multilingual-e5-small",
+        description="Embedding model name (E5 models require query/passage prefixes)",
     )
     embedding_dimensions: int = Field(
         default=384,

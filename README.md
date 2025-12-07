@@ -34,6 +34,7 @@ Persistent memory and knowledge management for LLMs via Model Context Protocol (
 - **Knowledge Base** - Document chunking and retrieval
 - **Agent Communication** - Message passing and context sharing between agents
 - **Flexible Embeddings** - Local (Sentence Transformers) or OpenAI
+- **Multilingual E5** - Default embedding model with 100+ language support (v1.6.1)
 - **Japanese Support** - Optional SudachiPy tokenization for FTS5
 - **TTL Auto-Cleanup** - Automatic expiration of short-term memories
 
@@ -202,7 +203,7 @@ All settings can be configured via environment variables with the `LLM_MEMORY_` 
 |----------|---------|-------------|
 | `LLM_MEMORY_DATABASE_PATH` | `./data/llm_memory.db` | Database file path |
 | `LLM_MEMORY_EMBEDDING_PROVIDER` | `local` | `local` or `openai` |
-| `LLM_MEMORY_EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Local embedding model |
+| `LLM_MEMORY_EMBEDDING_MODEL` | `intfloat/multilingual-e5-small` | Local embedding model (multilingual) |
 | `LLM_MEMORY_EMBEDDING_DIMENSIONS` | `384` | Embedding vector dimensions (1-4096) |
 | `LLM_MEMORY_CLEANUP_INTERVAL_SECONDS` | `300` | TTL cleanup interval (min 60s) |
 | `LLM_MEMORY_OPENAI_API_KEY` | - | Required for OpenAI embeddings |

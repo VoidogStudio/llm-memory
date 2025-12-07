@@ -111,10 +111,17 @@ async def temp_db(temp_db_path: str) -> AsyncIterator[Database]:
 def mock_embedding_provider() -> EmbeddingProvider:
     """Mock embedding provider for fast tests."""
     mock = AsyncMock(spec=EmbeddingProvider)
-    mock.embed.return_value = [0.1] * 384
+
+    # Make embed accept is_query parameter
+    async def embed_side_effect(text: str, *, is_query: bool = False) -> list[float]:
+        return [0.1] * 384
+
+    mock.embed.side_effect = embed_side_effect
 
     # Make embed_batch return the same number of embeddings as input texts
-    async def embed_batch_side_effect(texts: list[str]) -> list[list[float]]:
+    async def embed_batch_side_effect(
+        texts: list[str], *, is_query: bool = False
+    ) -> list[list[float]]:
         return [[0.1] * 384 for _ in texts]
 
     mock.embed_batch.side_effect = embed_batch_side_effect

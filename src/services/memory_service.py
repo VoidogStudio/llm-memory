@@ -127,8 +127,8 @@ class MemoryService:
         # Resolve namespace for all search modes
         resolved_namespace = await self.namespace_service.resolve_namespace(namespace)
 
-        # Generate query embedding
-        embedding = await self.embedding_service.generate(query)
+        # Generate query embedding (use is_query=True for search queries)
+        embedding = await self.embedding_service.generate(query, is_query=True)
 
         # Perform search based on mode
         if search_mode == "hybrid":

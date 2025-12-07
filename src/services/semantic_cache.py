@@ -85,8 +85,8 @@ class SemanticCache:
         Returns:
             Tuple of (result or None, cache_hit boolean)
         """
-        # Generate query embedding
-        query_embedding = await self.embedding_service.generate(query)
+        # Generate query embedding (use is_query=True for search queries)
+        query_embedding = await self.embedding_service.generate(query, is_query=True)
 
         # Generate cache key
         cache_key = self._generate_cache_key(query, namespace)
@@ -149,8 +149,8 @@ class SemanticCache:
             result: Result to cache
             namespace: Optional namespace for cache key
         """
-        # Generate query embedding
-        query_embedding = await self.embedding_service.generate(query)
+        # Generate query embedding (use is_query=True for search queries)
+        query_embedding = await self.embedding_service.generate(query, is_query=True)
 
         # Generate cache key
         cache_key = self._generate_cache_key(query, namespace)

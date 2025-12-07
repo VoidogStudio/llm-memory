@@ -111,8 +111,8 @@ class KnowledgeService:
         Returns:
             List of chunk results
         """
-        # Generate query embedding
-        embedding = await self.embedding_service.generate(query)
+        # Generate query embedding (use is_query=True for search queries)
+        embedding = await self.embedding_service.generate(query, is_query=True)
 
         # Perform vector search
         return await self.repository.vector_search_chunks(

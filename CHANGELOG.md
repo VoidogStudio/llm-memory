@@ -5,7 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.6.1] - 2025-12-08
+
+### Changed
+
+- **Default embedding model** changed from `all-MiniLM-L6-v2` to `intfloat/multilingual-e5-small`
+  - Better multilingual support (100+ languages including Japanese)
+  - Same 384 dimensions, compatible with existing databases
+  - E5 models use query/passage prefix handling internally (automatic)
+  - Previous model still works via `LLM_MEMORY_EMBEDDING_MODEL=all-MiniLM-L6-v2`
+
+### Fixed
+
+- **FTS5 keyword search** - Fixed tokenization mismatch for English text
+  - SudachiPy was incorrectly tokenizing pure English text (e.g., "FTS5" → "FTS 5")
+  - Added CJK character detection to only use SudachiPy for Japanese/Chinese/Korean text
+  - English text now correctly uses FTS5's unicode61 tokenizer
+
+- **Test warnings** - Resolved all pytest warnings
+  - Registered `performance` marker in pyproject.toml
+  - Fixed SudachiPy deprecated `dict_type` parameter → `dict`
+  - Removed unnecessary `@pytest.mark.asyncio` from synchronous tests
+
+### Technical Details
+
+- Added `is_query` parameter to `EmbeddingProvider.embed()` and `embed_batch()` methods
+- E5 models automatically add "query: " prefix for search queries and "passage: " prefix for stored documents
+- Non-E5 models ignore the prefix parameter for backward compatibility
+- Added CJK regex pattern in `TokenizationService` for selective Japanese tokenization
+- 356 total tests (all pass, 3 skipped, 0 warnings)
+- Test coverage: 68%
 
 ## [1.6.0] - 2025-12-07
 
@@ -471,7 +500,8 @@ Initial public release.
 
 ---
 
-[Unreleased]: https://github.com/VoidogStudio/llm-memory/compare/v1.5.0...HEAD
+[1.6.1]: https://github.com/VoidogStudio/llm-memory/compare/v1.6.0...v1.6.1
+[1.6.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/VoidogStudio/llm-memory/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.3.0...v1.4.0

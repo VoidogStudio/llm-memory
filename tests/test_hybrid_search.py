@@ -6,7 +6,6 @@ from src.services.memory_service import MemoryService
 from src.services.tokenization_service import TokenizationService
 
 
-@pytest.mark.asyncio
 class TestTokenization:
     """Test TokenizationService functionality."""
 

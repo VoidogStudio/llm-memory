@@ -33,7 +33,7 @@ class MockEmbeddingProvider(EmbeddingProvider):
     def __init__(self, dimensions: int = 384):
         self._dimensions = dimensions
 
-    async def embed(self, text: str) -> list[float]:
+    async def embed(self, text: str, *, is_query: bool = False) -> list[float]:
         """テキストから決定論的な埋め込みを生成"""
         if not text or not text.strip():
             raise ValueError("Text cannot be empty")
@@ -41,7 +41,9 @@ class MockEmbeddingProvider(EmbeddingProvider):
         hash_val = hash(text)
         return [(hash_val + i) % 1000 / 1000.0 for i in range(self._dimensions)]
 
-    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+    async def embed_batch(
+        self, texts: list[str], *, is_query: bool = False
+    ) -> list[list[float]]:
         """複数テキストの埋め込みを生成"""
         return [await self.embed(text) for text in texts]
 
