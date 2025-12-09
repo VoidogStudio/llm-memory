@@ -1,6 +1,6 @@
 # LLM Memory MCP Tools Reference
 
-LLM Memory provides 37 MCP tools that give LLMs persistent memory, knowledge base, and inter-agent communication capabilities.
+LLM Memory provides 48 MCP tools that give LLMs persistent memory, knowledge base, and inter-agent communication capabilities.
 
 ## Tool List
 
@@ -84,6 +84,44 @@ Tools for automatically acquiring, syncing, and maintaining knowledge.
 | `knowledge_refresh_stale` | Refresh or clean up stale knowledge | [Details](acquisition-tools.md#knowledge_refresh_stale) |
 
 Details: [Acquisition Tools](acquisition-tools.md)
+
+### Memory Versioning (4 tools) **v1.7.0**
+
+Tools for tracking memory history and rollback.
+
+| Tool | Description | Documentation |
+|------|-------------|---------------|
+| `memory_version_history` | Get complete version history | [Details](versioning-tools.md#memory_version_history) |
+| `memory_version_get` | Retrieve specific version | [Details](versioning-tools.md#memory_version_get) |
+| `memory_version_rollback` | Restore to previous version | [Details](versioning-tools.md#memory_version_rollback) |
+| `memory_version_diff` | Compare two versions | [Details](versioning-tools.md#memory_version_diff) |
+
+Details: [Versioning Tools](versioning-tools.md)
+
+### Structured Schema (5 tools) **v1.7.0**
+
+Tools for defining and using typed memory structures.
+
+| Tool | Description | Documentation |
+|------|-------------|---------------|
+| `memory_schema_register` | Register a memory schema | [Details](schema-tools.md#memory_schema_register) |
+| `memory_schema_list` | List all schemas | [Details](schema-tools.md#memory_schema_list) |
+| `memory_schema_get` | Get schema details | [Details](schema-tools.md#memory_schema_get) |
+| `memory_store_typed` | Store with schema validation | [Details](schema-tools.md#memory_store_typed) |
+| `memory_search_typed` | Search by type and fields | [Details](schema-tools.md#memory_search_typed) |
+
+Details: [Schema Tools](schema-tools.md)
+
+### Dependency Tracking (2 tools) **v1.7.0**
+
+Tools for analyzing and propagating dependency changes.
+
+| Tool | Description | Documentation |
+|------|-------------|---------------|
+| `memory_dependency_analyze` | Analyze impact on dependents | [Details](dependency-tools.md#memory_dependency_analyze) |
+| `memory_dependency_propagate` | Propagate change notifications | [Details](dependency-tools.md#memory_dependency_propagate) |
+
+Details: [Dependency Tools](dependency-tools.md)
 
 ### Knowledge Base (2 tools)
 
@@ -236,12 +274,14 @@ context_share(
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           MCP Tools Layer (37 tools)                        │
+│                           MCP Tools Layer (48 tools)                        │
 ├─────────────┬─────────────┬─────────────┬─────────────┬───────────────────┤
 │ Memory (11) │ Decay (3)   │ Linking (3) │Similarity(2)│ Context (3)       │
 │             │   v1.2.0    │   v1.2.0    │   v1.4.0    │   v1.5.0          │
 ├─────────────┴─────────────┴─────────────┴─────────────┴───────────────────┤
 │  Acquisition (5) v1.6.0  │  Knowledge (2)  │  Export/Import (2) v1.2.0    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Versioning (4) v1.7.0 │ Schema (5) v1.7.0 │ Dependency (2) v1.7.0        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                            Agent Tools (6)                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -252,12 +292,13 @@ context_share(
 │  SemanticCache v1.5.0 │ TokenCounter v1.5.0                                │
 │  ProjectScanService v1.6.0 │ KnowledgeSyncService v1.6.0                   │
 │  SessionLearningService v1.6.0 │ StalenessService v1.6.0                   │
+│  VersioningService v1.7.0 │ SchemaService v1.7.0 │ DependencyService v1.7.0│
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                           Repository Layer                                  │
 │  MemoryRepo (+ FTS5, Hybrid Search, Namespace) │ KnowledgeRepo │ AgentRepo │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                            Database Layer                                   │
-│       SQLite + sqlite-vec + FTS5 (Vector + Keyword) - Schema v5            │
+│       SQLite + sqlite-vec + FTS5 (Vector + Keyword) - Schema v6            │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -344,6 +385,9 @@ All tools return a unified error format:
 - [Similarity Tools Details](similarity-tools.md) (v1.4.0)
 - [Context Tools Details](context-tools.md) (v1.5.0)
 - [Acquisition Tools Details](acquisition-tools.md) (v1.6.0)
+- [Versioning Tools Details](versioning-tools.md) (v1.7.0)
+- [Schema Tools Details](schema-tools.md) (v1.7.0)
+- [Dependency Tools Details](dependency-tools.md) (v1.7.0)
 - [Knowledge Tools Details](knowledge-tools.md)
 - [Export/Import Tools Details](export-import-tools.md) (v1.2.0)
 - [Agent Tools Details](agent-tools.md)

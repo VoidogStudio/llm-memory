@@ -4,6 +4,7 @@ import json
 
 from src.db.database import Database
 from src.db.repositories.memory_repository import MemoryRepository
+from src.exceptions import ValidationError
 from src.models.linking import LinkType, MemoryLink
 
 
@@ -17,6 +18,8 @@ class LinkingService:
         LinkType.RELATED: LinkType.RELATED,
         LinkType.SIMILAR: LinkType.SIMILAR,
         LinkType.REFERENCE: LinkType.REFERENCE,
+        LinkType.DEPENDS_ON: LinkType.DERIVED_FROM,  # v1.7.0
+        LinkType.DERIVED_FROM: LinkType.DEPENDS_ON,  # v1.7.0
     }
 
     def __init__(self, repository: MemoryRepository, db: Database) -> None:
@@ -37,6 +40,9 @@ class LinkingService:
         bidirectional: bool = True,
         metadata: dict | None = None,
         use_transaction: bool = True,
+        cascade_on_update: bool = False,  # v1.7.0
+        cascade_on_delete: bool = False,  # v1.7.0
+        strength: float = 1.0,  # v1.7.0
     ) -> MemoryLink:
         """Create a link between two memories.
 
@@ -47,17 +53,24 @@ class LinkingService:
             bidirectional: If True, create reverse link
             metadata: Optional metadata
             use_transaction: If True, wrap operations in explicit transaction
+            cascade_on_update: Propagate update notifications (v1.7.0)
+            cascade_on_delete: Propagate delete notifications (v1.7.0)
+            strength: Link strength 0.0-1.0 (v1.7.0)
 
         Returns:
             Created MemoryLink
 
         Raises:
-            ValueError: If source_id == target_id
+            ValueError: If source_id == target_id or invalid strength
             RuntimeError: If source or target memory not found
         """
         # Validate not self-referencing
         if source_id == target_id:
             raise ValueError("Cannot create link to self")
+
+        # Validate strength (v1.7.0)
+        if not 0.0 <= strength <= 1.0:
+            raise ValidationError(f"strength must be between 0.0 and 1.0, got {strength}")
 
         # Verify both memories exist
         source = await self.repository.find_by_id(source_id)
@@ -74,6 +87,9 @@ class LinkingService:
             target_id=target_id,
             link_type=link_type,
             metadata=metadata or {},
+            cascade_on_update=cascade_on_update,  # v1.7.0
+            cascade_on_delete=cascade_on_delete,  # v1.7.0
+            strength=strength,  # v1.7.0
         )
 
         async def _do_insert() -> None:
@@ -82,8 +98,9 @@ class LinkingService:
             await self.db.execute(
                 """
                 INSERT INTO memory_links (
-                    id, source_id, target_id, link_type, metadata, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    id, source_id, target_id, link_type, metadata, created_at,
+                    cascade_on_update, cascade_on_delete, strength
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     link.id,
@@ -92,6 +109,9 @@ class LinkingService:
                     link.link_type.value,
                     json.dumps(link.metadata),
                     link.created_at.isoformat(),
+                    1 if link.cascade_on_update else 0,  # v1.7.0
+                    1 if link.cascade_on_delete else 0,  # v1.7.0
+                    link.strength,  # v1.7.0
                 ),
             )
 
@@ -103,12 +123,16 @@ class LinkingService:
                     target_id=source_id,
                     link_type=reverse_type,
                     metadata=metadata or {},
+                    cascade_on_update=cascade_on_update,  # v1.7.0
+                    cascade_on_delete=cascade_on_delete,  # v1.7.0
+                    strength=strength,  # v1.7.0
                 )
                 await self.db.execute(
                     """
                     INSERT INTO memory_links (
-                        id, source_id, target_id, link_type, metadata, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?)
+                        id, source_id, target_id, link_type, metadata, created_at,
+                        cascade_on_update, cascade_on_delete, strength
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         reverse_link.id,
@@ -117,6 +141,9 @@ class LinkingService:
                         reverse_link.link_type.value,
                         json.dumps(reverse_link.metadata),
                         reverse_link.created_at.isoformat(),
+                        1 if reverse_link.cascade_on_update else 0,  # v1.7.0
+                        1 if reverse_link.cascade_on_delete else 0,  # v1.7.0
+                        reverse_link.strength,  # v1.7.0
                     ),
                 )
 

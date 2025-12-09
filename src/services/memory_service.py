@@ -13,6 +13,7 @@ from src.models.memory import (
 )
 from src.services.embedding_service import EmbeddingService
 from src.services.namespace_service import NamespaceService
+from src.services.schema_service import SchemaService
 from src.services.tokenization_service import TokenizationService
 
 
@@ -24,6 +25,7 @@ class MemoryService:
         repository: MemoryRepository,
         embedding_service: EmbeddingService,
         namespace_service: NamespaceService,
+        schema_service: SchemaService | None = None,
     ) -> None:
         """Initialize memory service.
 
@@ -31,10 +33,12 @@ class MemoryService:
             repository: Memory repository
             embedding_service: Embedding service
             namespace_service: Namespace service
+            schema_service: Schema service (optional, for typed memory support)
         """
         self.repository = repository
         self.embedding_service = embedding_service
         self.namespace_service = namespace_service
+        self.schema_service = schema_service
 
     async def store(
         self,
@@ -693,3 +697,171 @@ class MemoryService:
             "updated_ids": updated_ids,
             "errors": errors,
         }
+
+    # v1.7.0 Typed Memory Methods
+    async def store_typed(
+        self,
+        schema_id: str,
+        structured_content: dict[str, Any],
+        content: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict | None = None,
+        namespace: str | None = None,
+    ) -> Memory:
+        """Store a typed memory with structured content.
+
+        Args:
+            schema_id: Schema ID to use
+            structured_content: Structured data validated against schema
+            content: Human-readable content (optional, auto-generated from structured_content if not provided)
+            tags: Tags for categorization
+            metadata: Additional metadata
+            namespace: Target namespace
+
+        Returns:
+            Created memory object
+
+        Raises:
+            ValidationError: If structured_content does not match schema
+        """
+        # Resolve namespace
+        explicit_namespace = namespace
+        namespace = await self.namespace_service.resolve_namespace(namespace)
+        self.namespace_service.validate_shared_write(namespace, explicit_namespace is not None)
+
+        # Get schema and validate data
+        if self.schema_service is None:
+            from src.exceptions import ValidationError
+            raise ValidationError("SchemaService is required for typed memory operations")
+
+        schema = await self.schema_service.get_schema_by_id(schema_id)
+        if not schema:
+            from src.exceptions import NotFoundError
+            raise NotFoundError(f"Schema not found: {schema_id}")
+
+        # Validate structured_content against schema
+        is_valid, errors = await self.schema_service.validate_data(schema, structured_content)
+        if not is_valid:
+            from src.exceptions import ValidationError
+            raise ValidationError(f"Schema validation failed: {', '.join(errors)}")
+
+        # Auto-generate content from structured_content if not provided
+        if content is None:
+            import json
+            content = json.dumps(structured_content, ensure_ascii=False)
+
+        # Create memory object with schema_id and structured_content
+        now = datetime.now(timezone.utc)
+
+        memory = Memory(
+            content=content,
+            content_type=ContentType.JSON,  # Typed memories are JSON-based
+            memory_tier=MemoryTier.LONG_TERM,
+            tags=tags or [],
+            metadata=metadata or {},
+            created_at=now,
+            updated_at=now,
+            namespace=namespace,
+            schema_id=schema_id,
+            structured_content=structured_content,
+        )
+
+        # Generate embedding
+        embedding = await self.embedding_service.generate(content)
+
+        # Store in repository
+        return await self.repository.create(memory, embedding)
+
+    async def search_typed(
+        self,
+        schema_id: str,
+        field_conditions: dict[str, Any],
+        namespace: str | None = None,
+        top_k: int = 10,
+        sort_by: str | None = None,
+        sort_order: str = "desc",
+    ) -> list[Memory]:
+        """Search typed memories by field conditions.
+
+        Args:
+            schema_id: Schema ID to filter by
+            field_conditions: Field-value conditions for JSON query (supports operators like $gte, $lte, $gt, $lt)
+            namespace: Target namespace
+            top_k: Maximum results
+            sort_by: Field to sort by (optional)
+            sort_order: Sort order (asc/desc)
+
+        Returns:
+            List of matching memories
+        """
+        # Resolve namespace
+        resolved_namespace = await self.namespace_service.resolve_namespace(namespace)
+
+        # Build JSON query conditions using SQLite JSON1 extension
+        where_clauses = ["schema_id = ?"]
+        params: list[Any] = [schema_id]
+
+        # Add namespace filter
+        where_clauses.append("namespace = ?")
+        params.append(resolved_namespace)
+
+        # Add field conditions using json_extract
+        for field_name, field_value in field_conditions.items():
+            json_path = f"$.{field_name}"
+
+            # Check if field_value is a comparison operator dict
+            if isinstance(field_value, dict):
+                # Handle comparison operators like {"$gte": 5}
+                for operator, value in field_value.items():
+                    if operator == "$gte":
+                        where_clauses.append("CAST(json_extract(structured_content, ?) AS REAL) >= ?")
+                    elif operator == "$lte":
+                        where_clauses.append("CAST(json_extract(structured_content, ?) AS REAL) <= ?")
+                    elif operator == "$gt":
+                        where_clauses.append("CAST(json_extract(structured_content, ?) AS REAL) > ?")
+                    elif operator == "$lt":
+                        where_clauses.append("CAST(json_extract(structured_content, ?) AS REAL) < ?")
+                    elif operator == "$eq":
+                        where_clauses.append("json_extract(structured_content, ?) = ?")
+                    elif operator == "$ne":
+                        where_clauses.append("json_extract(structured_content, ?) != ?")
+                    else:
+                        # Unknown operator, skip
+                        continue
+                    params.append(json_path)
+                    params.append(value)
+            else:
+                # Simple equality check
+                if isinstance(field_value, (int, float)):
+                    # Numeric comparison: CAST both sides to REAL
+                    where_clauses.append("CAST(json_extract(structured_content, ?) AS REAL) = CAST(? AS REAL)")
+                    params.append(json_path)
+                    params.append(field_value)
+                else:
+                    # String comparison: json_extract returns unquoted strings for SQLite
+                    # Direct comparison works for string values
+                    where_clauses.append("json_extract(structured_content, ?) = ?")
+                    params.append(json_path)
+                    params.append(field_value)
+
+        where_clause = " AND ".join(where_clauses)
+
+        # Build ORDER BY clause
+        order_clause = "created_at DESC"  # Default
+        if sort_by:
+            direction = "ASC" if sort_order.lower() == "asc" else "DESC"
+            order_clause = f"json_extract(structured_content, '$.{sort_by}') {direction}"
+
+        # Execute query
+        cursor = await self.repository.db.execute(
+            f"""
+            SELECT * FROM memories
+            WHERE {where_clause}
+            ORDER BY {order_clause}
+            LIMIT ?
+            """,
+            tuple(params + [top_k]),
+        )
+
+        rows = await cursor.fetchall()
+        return [self.repository._row_to_memory(row) for row in rows]

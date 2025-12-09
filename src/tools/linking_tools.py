@@ -14,6 +14,9 @@ async def memory_link(
     link_type: str = "related",
     bidirectional: bool = True,
     metadata: dict[str, Any] | None = None,
+    cascade_on_update: bool = False,  # v1.7.0
+    cascade_on_delete: bool = False,  # v1.7.0
+    strength: float = 1.0,  # v1.7.0
 ) -> dict[str, Any]:
     """Create a link between two memories.
 
@@ -21,9 +24,12 @@ async def memory_link(
         service: Linking service instance
         source_id: Source memory ID
         target_id: Target memory ID
-        link_type: Link type (related/parent/child/similar/reference)
+        link_type: Link type (related/parent/child/similar/reference/depends_on/derived_from)
         bidirectional: Create reverse link automatically
         metadata: Optional link metadata
+        cascade_on_update: Propagate update notifications (v1.7.0)
+        cascade_on_delete: Propagate delete notifications (v1.7.0)
+        strength: Link strength 0.0-1.0 (v1.7.0)
 
     Returns:
         Created link information
@@ -53,6 +59,9 @@ async def memory_link(
             bidirectional=bidirectional,
             metadata=metadata,
             use_transaction=False,
+            cascade_on_update=cascade_on_update,  # v1.7.0
+            cascade_on_delete=cascade_on_delete,  # v1.7.0
+            strength=strength,  # v1.7.0
         )
 
         return {
@@ -61,6 +70,9 @@ async def memory_link(
             "target_id": link.target_id,
             "link_type": link.link_type.value,
             "bidirectional": bidirectional,
+            "cascade_on_update": link.cascade_on_update,  # v1.7.0
+            "cascade_on_delete": link.cascade_on_delete,  # v1.7.0
+            "strength": link.strength,  # v1.7.0
             "created_at": link.created_at.isoformat(),
         }
     except ValueError as e:

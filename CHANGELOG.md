@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2025-12-09
+
+### Added
+
+- **Memory Versioning** (4 new tools) - Track and manage memory evolution
+  - `memory_version_history` - Get complete version history with timestamps
+  - `memory_version_get` - Retrieve specific memory version
+  - `memory_version_rollback` - Restore memory to previous version
+  - `memory_version_diff` - Compare two versions and view changes
+  - Version tracking for all memory updates with automatic snapshots
+  - Ability to roll back to any previous state
+
+- **Structured Memory Schema** (5 new tools) - Define and enforce memory structure
+  - `memory_schema_register` - Register custom memory schemas
+  - `memory_schema_list` - List all registered schemas with metadata
+  - `memory_schema_get` - Get detailed schema information
+  - `memory_store_typed` - Store memory with schema validation
+  - `memory_search_typed` - Search memories with type filtering
+  - Schema-based validation and structure enforcement
+  - Type-safe memory storage and retrieval
+
+- **Dependency Tracking** (2 new tools + link extension) - Manage memory relationships and impacts
+  - `memory_dependency_analyze` - Analyze impact of changes on dependent memories
+  - `memory_dependency_propagate` - Automatically propagate updates to dependencies
+  - Extended `memory_link` with cascade options (`cascade_on_update`, `cascade_on_delete`, `strength`)
+  - New link types: `DEPENDS_ON`, `DERIVED_FROM`
+  - Automatic notification of dependent memories
+  - Circular dependency detection
+  - Safe deletion with dependency awareness
+
+### Changed
+
+- **Database Migration** (v5 → v6)
+  - New `memory_versions` table for version history storage
+  - New `memory_schemas` table for schema definitions
+  - New `dependency_notifications` table for tracking cascading changes
+  - Added `version`, `previous_version_id`, `schema_id`, `structured_content` columns to `memories` table
+  - Added `cascade_on_update`, `cascade_on_delete`, `strength` columns to `memory_links` table
+  - New indexes: `idx_versions_memory`, `idx_schemas_namespace`, `idx_notifications_pending`
+  - Migration includes backward compatibility for existing data
+
+### Technical Details
+
+- Total tools increased: 37 → 48 (+11 new tools)
+- 402 total tests (399 passed, 3 skipped for performance)
+- Test coverage: 80%+ for new features
+- All new features include comprehensive error handling
+- Automatic schema validation on typed memory operations
+- Automatic version snapshots on memory updates
+
 ## [1.6.2] - 2025-12-08
 
 ### Improved
@@ -504,12 +554,12 @@ Initial public release.
 
 ## Roadmap
 
-### v1.6.0 - Auto Knowledge Acquisition
+### v1.8.0 - Enhanced Memory Intelligence
 
-- **Project scan** - Auto-import README, docs/, code comments
-- **knowledge_sync** - Watch directory and auto-import on changes
-- **Session learning** - Auto-extract learnings from conversations
-- **Staleness detection** - Auto-mark outdated memories
+- **Memory Clustering** - Automatic grouping of related memories
+- **Smart Tags** - AI-assisted tag suggestions
+- **Conflict Detection** - Alert on contradictory information
+- **Memory Analytics** - Usage patterns and insights dashboard
 
 ### v2.0.0 - Enterprise Features
 
@@ -523,6 +573,7 @@ Initial public release.
 
 ---
 
+[1.7.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.6.2...v1.7.0
 [1.6.2]: https://github.com/VoidogStudio/llm-memory/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/VoidogStudio/llm-memory/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/VoidogStudio/llm-memory/compare/v1.5.0...v1.6.0

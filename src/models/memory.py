@@ -47,6 +47,12 @@ class Memory(BaseModel):
     consolidated_from: list[str] | None = None
     # Namespace field (v1.4.0)
     namespace: str = Field(default="default", min_length=1, max_length=128)
+    # v1.7.0 Versioning
+    version: int = 1
+    previous_version_id: str | None = None
+    # v1.7.0 Schema
+    schema_id: str | None = None
+    structured_content: dict[str, Any] | None = None
 
 
 class MemoryCreate(BaseModel):

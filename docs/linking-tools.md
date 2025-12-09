@@ -27,6 +27,9 @@ Create a link between two memories. Bidirectional links are created by default.
 | `link_type` | string | No | `"related"` | Link type |
 | `bidirectional` | boolean | No | `true` | Create bidirectional link |
 | `metadata` | object | No | `{}` | Link metadata |
+| `cascade_on_update` | boolean | No | `false` | Notify target when source is updated (v1.7.0) |
+| `cascade_on_delete` | boolean | No | `false` | Notify target when source is deleted (v1.7.0) |
+| `strength` | float | No | `1.0` | Link strength 0.0-1.0 (v1.7.0) |
 
 ### Link Types
 
@@ -37,6 +40,8 @@ Create a link between two memories. Bidirectional links are created by default.
 | `child` | Child memory | `parent` |
 | `similar` | Similar memories | `similar` |
 | `reference` | Referenced memory | `reference` |
+| `DEPENDS_ON` | Target depends on source (v1.7.0) | - |
+| `DERIVED_FROM` | Target is derived from source (v1.7.0) | - |
 
 ### Response
 
@@ -83,6 +88,17 @@ memory_link(
     target_id="uuid-2",
     link_type="similar",
     metadata={"similarity_score": 0.95}
+)
+
+# v1.7.0: Create dependency link with cascade
+memory_link(
+    source_id="config-uuid",
+    target_id="derived-uuid",
+    link_type="DEPENDS_ON",
+    cascade_on_update=True,
+    cascade_on_delete=True,
+    strength=1.0,
+    bidirectional=False
 )
 ```
 
@@ -310,4 +326,5 @@ memory_link(
 ## Related Links
 
 - [Memory Tools](memory-tools.md)
+- [Dependency Tools](dependency-tools.md) (v1.7.0)
 - [Tools List](tools-reference.md)

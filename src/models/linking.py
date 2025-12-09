@@ -16,6 +16,8 @@ class LinkType(str, Enum):
     CHILD = "child"
     SIMILAR = "similar"
     REFERENCE = "reference"
+    DEPENDS_ON = "depends_on"  # v1.7.0
+    DERIVED_FROM = "derived_from"  # v1.7.0
 
 
 class MemoryLink(BaseModel):
@@ -27,6 +29,10 @@ class MemoryLink(BaseModel):
     link_type: LinkType = LinkType.RELATED
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    # v1.7.0 Dependency Tracking
+    cascade_on_update: bool = False
+    cascade_on_delete: bool = False
+    strength: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
 class LinkCreate(BaseModel):

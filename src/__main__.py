@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 
+from src import __version__
 from src.config.settings import Settings
 from src.server import create_server, initialize_services, shutdown_services
 
@@ -16,7 +17,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s 1.6.2",
+        version=f"%(prog)s {__version__}",
     )
     return parser.parse_args()
 

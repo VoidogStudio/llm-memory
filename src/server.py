@@ -17,6 +17,7 @@ from src.services.agent_service import AgentService
 from src.services.consolidation_service import ConsolidationService
 from src.services.context_building_service import ContextBuildingService
 from src.services.decay_service import DecayService
+from src.services.dependency_service import DependencyService
 from src.services.embedding_service import EmbeddingService
 from src.services.export_import_service import ExportImportService
 from src.services.file_hash_service import FileHashService
@@ -28,9 +29,11 @@ from src.services.linking_service import LinkingService
 from src.services.memory_service import MemoryService
 from src.services.namespace_service import NamespaceService
 from src.services.project_scan_service import ProjectScanService
+from src.services.schema_service import SchemaService
 from src.services.semantic_cache import SemanticCache
 from src.services.session_learning_service import SessionLearningService
 from src.services.staleness_service import StalenessService
+from src.services.versioning_service import VersioningService
 from src.tools import (
     acquisition_tools,
     agent_tools,
@@ -38,12 +41,15 @@ from src.tools import (
     consolidation_tools,
     context_tools,
     decay_tools,
+    dependency_tools,
     export_import_tools,
     importance_tools,
     knowledge_tools,
     linking_tools,
     memory_tools,
+    schema_tools,
     similarity_tools,
+    versioning_tools,
 )
 
 # Initialize FastMCP server
@@ -67,6 +73,10 @@ project_scan_service: ProjectScanService | None = None
 knowledge_sync_service: KnowledgeSyncService | None = None
 session_learning_service: SessionLearningService | None = None
 staleness_service: StalenessService | None = None
+# v1.7.0 New services
+versioning_service: VersioningService | None = None
+schema_service: SchemaService | None = None
+dependency_service: DependencyService | None = None
 db: Database | None = None
 
 # Background tasks
@@ -79,7 +89,7 @@ async def initialize_services(settings: Settings) -> None:
     Args:
         settings: Application settings
     """
-    global memory_service, agent_service, knowledge_service, importance_service, consolidation_service, decay_service, linking_service, export_import_service, namespace_service, context_building_service, graph_traversal_service, semantic_cache, project_scan_service, knowledge_sync_service, session_learning_service, staleness_service, db
+    global memory_service, agent_service, knowledge_service, importance_service, consolidation_service, decay_service, linking_service, export_import_service, namespace_service, context_building_service, graph_traversal_service, semantic_cache, project_scan_service, knowledge_sync_service, session_learning_service, staleness_service, versioning_service, schema_service, dependency_service, db
 
     # Initialize database
     db = Database(settings.database_path, settings.embedding_dimensions)
@@ -102,8 +112,11 @@ async def initialize_services(settings: Settings) -> None:
     embedding_service = EmbeddingService(embedding_provider)
     namespace_service = NamespaceService(settings)
 
+    # Initialize v1.7.0 schema service early (needed by memory_service)
+    schema_service = SchemaService(db=db, namespace_service=namespace_service)
+
     memory_repo = MemoryRepository(db)
-    memory_service = MemoryService(memory_repo, embedding_service, namespace_service)
+    memory_service = MemoryService(memory_repo, embedding_service, namespace_service, schema_service)
 
     agent_repo = AgentRepository(db)
     agent_service = AgentService(agent_repo)
@@ -162,6 +175,10 @@ async def initialize_services(settings: Settings) -> None:
         memory_repository=memory_repo,
         file_hash_service=file_hash_service,
     )
+
+    # Initialize v1.7.0 services (schema_service already initialized above)
+    versioning_service = VersioningService(repository=memory_repo)
+    dependency_service = DependencyService(memory_repository=memory_repo, db=db)
 
     # Start background tasks
     await start_background_tasks()
@@ -824,22 +841,30 @@ async def memory_link(
     link_type: str = "related",
     bidirectional: bool = True,
     metadata: dict[str, Any] | None = None,
+    cascade_on_update: bool = False,
+    cascade_on_delete: bool = False,
+    strength: float = 1.0,
 ) -> dict[str, Any]:
     """Create a link between two memories.
 
     Args:
         source_id: Source memory ID
         target_id: Target memory ID
-        link_type: Link type (related/parent/child/similar/reference)
+        link_type: Link type (related/parent/child/similar/reference/depends_on/derived_from)
         bidirectional: Create reverse link automatically
         metadata: Optional link metadata
+        cascade_on_update: Propagate update notifications (v1.7.0)
+        cascade_on_delete: Propagate delete notifications (v1.7.0)
+        strength: Link strength 0.0-1.0 (v1.7.0)
 
     Returns:
         Created link information
     """
     if not linking_service:
         raise RuntimeError("Services not initialized")
-    return await linking_tools.memory_link(linking_service, source_id, target_id, link_type, bidirectional, metadata)
+    return await linking_tools.memory_link(
+        linking_service, source_id, target_id, link_type, bidirectional, metadata, cascade_on_update, cascade_on_delete, strength
+    )
 
 
 @mcp.tool()
@@ -1164,6 +1189,252 @@ async def knowledge_refresh_stale(
     return await acquisition_tools.knowledge_refresh_stale(
         staleness_service, memory_ids, namespace, action, dry_run
     )
+
+
+# Versioning Tools (v1.7.0)
+@mcp.tool()
+async def memory_version_history(
+    memory_id: str,
+    limit: int = 10,
+) -> dict[str, Any]:
+    """Get version history for a memory.
+
+    Args:
+        memory_id: Memory ID
+        limit: Maximum versions to return (1-50, default 10)
+
+    Returns:
+        Version history information
+    """
+    if not versioning_service:
+        raise RuntimeError("Services not initialized")
+    return await versioning_tools.memory_version_history(versioning_service, memory_id, limit)
+
+
+@mcp.tool()
+async def memory_version_get(
+    memory_id: str,
+    version: int,
+) -> dict[str, Any]:
+    """Get a specific version of a memory.
+
+    Args:
+        memory_id: Memory ID
+        version: Version number to retrieve
+
+    Returns:
+        Version information
+    """
+    if not versioning_service:
+        raise RuntimeError("Services not initialized")
+    return await versioning_tools.memory_version_get(versioning_service, memory_id, version)
+
+
+@mcp.tool()
+async def memory_version_rollback(
+    memory_id: str,
+    target_version: int,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """Rollback a memory to a specific version.
+
+    Args:
+        memory_id: Memory ID
+        target_version: Version number to rollback to
+        reason: Optional reason for rollback
+
+    Returns:
+        Rollback result
+    """
+    if not versioning_service:
+        raise RuntimeError("Services not initialized")
+    return await versioning_tools.memory_version_rollback(versioning_service, memory_id, target_version, reason)
+
+
+@mcp.tool()
+async def memory_version_diff(
+    memory_id: str,
+    old_version: int,
+    new_version: int,
+) -> dict[str, Any]:
+    """Show differences between two versions.
+
+    Args:
+        memory_id: Memory ID
+        old_version: Older version number
+        new_version: Newer version number
+
+    Returns:
+        Version diff information
+    """
+    if not versioning_service:
+        raise RuntimeError("Services not initialized")
+    return await versioning_tools.memory_version_diff(versioning_service, memory_id, old_version, new_version)
+
+
+# Schema Tools (v1.7.0)
+@mcp.tool()
+async def memory_schema_register(
+    name: str,
+    fields: list[dict[str, Any]],
+    namespace: str | None = None,
+    description: str | None = None,
+) -> dict[str, Any]:
+    """Register a new memory schema.
+
+    Args:
+        name: Schema name
+        fields: Field definitions
+        namespace: Target namespace (default: auto-detect)
+        description: Schema description
+
+    Returns:
+        Created schema information
+    """
+    if not schema_service:
+        raise RuntimeError("Services not initialized")
+    return await schema_tools.memory_schema_register(schema_service, name, fields, namespace, description)
+
+
+@mcp.tool()
+async def memory_schema_list(
+    namespace: str | None = None,
+    include_fields: bool = False,
+) -> dict[str, Any]:
+    """List registered schemas.
+
+    Args:
+        namespace: Target namespace (default: auto-detect, None for all)
+        include_fields: Include field definitions
+
+    Returns:
+        List of schemas
+    """
+    if not schema_service:
+        raise RuntimeError("Services not initialized")
+    return await schema_tools.memory_schema_list(schema_service, namespace, include_fields)
+
+
+@mcp.tool()
+async def memory_schema_get(
+    name: str,
+    namespace: str | None = None,
+    version: int | None = None,
+) -> dict[str, Any]:
+    """Get a specific schema.
+
+    Args:
+        name: Schema name
+        namespace: Target namespace
+        version: Specific version (default: latest)
+
+    Returns:
+        Schema information
+    """
+    if not schema_service:
+        raise RuntimeError("Services not initialized")
+    return await schema_tools.memory_schema_get(schema_service, name, namespace, version)
+
+
+@mcp.tool()
+async def memory_store_typed(
+    schema_name: str,
+    structured_content: dict[str, Any],
+    namespace: str | None = None,
+    content: str | None = None,
+    tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Store a memory with structured content validated against a schema.
+
+    Args:
+        schema_name: Name of the schema to use
+        structured_content: Structured data matching schema fields
+        namespace: Target namespace
+        content: Human-readable content (auto-generated if not provided)
+        tags: Tags for categorization
+        metadata: Additional metadata
+
+    Returns:
+        Created memory information
+    """
+    if not memory_service or not schema_service:
+        raise RuntimeError("Services not initialized")
+    return await schema_tools.memory_store_typed(
+        memory_service, schema_service, schema_name, structured_content, namespace, content, tags, metadata
+    )
+
+
+@mcp.tool()
+async def memory_search_typed(
+    schema_name: str,
+    field_conditions: dict[str, Any],
+    namespace: str | None = None,
+    top_k: int = 10,
+    sort_by: str | None = None,
+    sort_order: str = "desc",
+) -> dict[str, Any]:
+    """Search typed memories by field conditions.
+
+    Args:
+        schema_name: Schema name to filter by
+        field_conditions: Field-value conditions
+        namespace: Target namespace
+        top_k: Maximum results (1-100)
+        sort_by: Field to sort by
+        sort_order: Sort order (asc/desc)
+
+    Returns:
+        Search results
+    """
+    if not memory_service or not schema_service:
+        raise RuntimeError("Services not initialized")
+    return await schema_tools.memory_search_typed(
+        memory_service, schema_service, schema_name, field_conditions, namespace, top_k, sort_by, sort_order
+    )
+
+
+# Dependency Tools (v1.7.0)
+@mcp.tool()
+async def memory_dependency_analyze(
+    memory_id: str,
+    cascade_type: str = "update",
+    max_depth: int = 5,
+) -> dict[str, Any]:
+    """Analyze dependency impact for a memory.
+
+    Args:
+        memory_id: Source memory ID
+        cascade_type: Type of cascade to analyze ("update" | "delete")
+        max_depth: Maximum traversal depth (1-10, default 5)
+
+    Returns:
+        Dependency analysis result
+    """
+    if not dependency_service:
+        raise RuntimeError("Services not initialized")
+    return await dependency_tools.memory_dependency_analyze(dependency_service, memory_id, cascade_type, max_depth)
+
+
+@mcp.tool()
+async def memory_dependency_propagate(
+    memory_id: str,
+    notification_type: str = "update",
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Propagate change notifications to dependent memories.
+
+    Args:
+        memory_id: Source memory ID
+        notification_type: Type of notification ("update" | "delete" | "stale")
+        metadata: Additional context about the change
+
+    Returns:
+        Propagation result
+    """
+    if not dependency_service:
+        raise RuntimeError("Services not initialized")
+    return await dependency_tools.memory_dependency_propagate(dependency_service, memory_id, notification_type, metadata)
 
 
 def create_server() -> FastMCP:

@@ -56,8 +56,8 @@ class MemoryRepository:
                 id, content, content_type, memory_tier, tags, metadata,
                 agent_id, created_at, updated_at, expires_at,
                 importance_score, access_count, last_accessed_at, consolidated_from,
-                namespace
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                namespace, schema_id, structured_content
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 memory.id,
@@ -83,6 +83,12 @@ class MemoryRepository:
                     else None
                 ),
                 memory.namespace,
+                memory.schema_id,
+                (
+                    json.dumps(memory.structured_content)
+                    if memory.structured_content
+                    else None
+                ),
             ),
         )
 
@@ -112,13 +118,20 @@ class MemoryRepository:
 
         return self._row_to_memory(row)
 
-    async def update(self, memory_id: str, updates: dict[str, Any], use_transaction: bool = True) -> Memory | None:
+    async def update(
+        self,
+        memory_id: str,
+        updates: dict[str, Any],
+        use_transaction: bool = True,
+        change_reason: str | None = None,
+    ) -> Memory | None:
         """Update memory entry.
 
         Args:
             memory_id: Memory ID
             updates: Fields to update
             use_transaction: Whether to wrap in transaction (default True)
+            change_reason: Optional reason for the change (used in version history)
 
         Returns:
             Updated memory or None if not found
@@ -163,7 +176,16 @@ class MemoryRepository:
         if not set_clauses:
             return await self.find_by_id(memory_id)
 
+        # v1.7.0: Auto-save version before update (ADR-001)
+        # Get current memory state before update
+        current_memory = await self.find_by_id(memory_id)
+        if current_memory:
+            # Save current state as a version
+            version_reason = change_reason or "Auto-save before update"
+            await self.save_version(current_memory, change_reason=version_reason)
+
         set_clauses.append("updated_at = ?")
+        set_clauses.append("version = version + 1")  # Increment version
         params.append(datetime.now(timezone.utc).isoformat())
         params.append(memory_id)
 
@@ -570,6 +592,16 @@ class MemoryRepository:
                 else None
             ),
             namespace=row_dict.get("namespace", "default"),
+            # v1.7.0 Versioning
+            version=row_dict.get("version", 1),
+            previous_version_id=row_dict.get("previous_version_id"),
+            # v1.7.0 Schema
+            schema_id=row_dict.get("schema_id"),
+            structured_content=(
+                json.loads(row_dict["structured_content"])
+                if row_dict.get("structured_content")
+                else None
+            ),
         )
 
     async def log_access(
@@ -1094,3 +1126,183 @@ class MemoryRepository:
             results.append((memory_id, embedding))
 
         return results
+
+    # v1.7.0 Versioning Methods
+
+    async def save_version(
+        self, memory: Memory, change_reason: str | None = None
+    ) -> str:
+        """Save current memory state as a version snapshot.
+
+        Args:
+            memory: Memory object to snapshot
+            change_reason: Optional reason for the version
+
+        Returns:
+            Version ID
+        """
+
+        from src.models.versioning import MemoryVersion
+
+        version = MemoryVersion(
+            memory_id=memory.id,
+            version=memory.version,
+            content=memory.content,
+            content_type=memory.content_type.value,
+            tags=memory.tags,
+            metadata=memory.metadata,
+            change_reason=change_reason,
+        )
+
+        await self.db.execute(
+            """
+            INSERT INTO memory_versions (
+                id, memory_id, version, content, content_type,
+                tags, metadata, created_at, change_reason
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                version.id,
+                version.memory_id,
+                version.version,
+                version.content,
+                version.content_type,
+                json.dumps(version.tags),
+                json.dumps(version.metadata),
+                version.created_at.isoformat(),
+                version.change_reason,
+            ),
+        )
+        await self.db.commit()
+
+        return version.id
+
+    async def get_version_history(
+        self, memory_id: str, limit: int = 10
+    ) -> list[Any]:
+        """Get version history for a memory.
+
+        Args:
+            memory_id: Memory ID
+            limit: Maximum versions to return
+
+        Returns:
+            List of MemoryVersion objects
+        """
+        from src.models.versioning import MemoryVersion
+
+        cursor = await self.db.execute(
+            """
+            SELECT id, memory_id, version, content, content_type,
+                   tags, metadata, created_at, change_reason
+            FROM memory_versions
+            WHERE memory_id = ?
+            ORDER BY version DESC
+            LIMIT ?
+            """,
+            (memory_id, limit),
+        )
+        rows = await cursor.fetchall()
+
+        versions = []
+        for row in rows:
+            row_dict = dict(row)
+            version = MemoryVersion(
+                id=row_dict["id"],
+                memory_id=row_dict["memory_id"],
+                version=row_dict["version"],
+                content=row_dict["content"],
+                content_type=row_dict["content_type"],
+                tags=json.loads(row_dict["tags"]) if row_dict["tags"] else [],
+                metadata=json.loads(row_dict["metadata"]) if row_dict["metadata"] else {},
+                created_at=datetime.fromisoformat(row_dict["created_at"]),
+                change_reason=row_dict.get("change_reason"),
+            )
+            versions.append(version)
+
+        return versions
+
+    async def get_version(
+        self, memory_id: str, version_number: int
+    ) -> Any | None:
+        """Get a specific version of a memory.
+
+        Args:
+            memory_id: Memory ID
+            version_number: Version number to retrieve
+
+        Returns:
+            MemoryVersion object or None
+        """
+        from src.models.versioning import MemoryVersion
+
+        # First, check if this is the current version
+        current_memory = await self.find_by_id(memory_id)
+        if current_memory and current_memory.version == version_number:
+            # Return current memory as a MemoryVersion
+            return MemoryVersion(
+                id=current_memory.id,  # Use memory ID as version ID for current version
+                memory_id=current_memory.id,
+                version=current_memory.version,
+                content=current_memory.content,
+                content_type=current_memory.content_type.value,
+                tags=current_memory.tags,
+                metadata=current_memory.metadata,
+                created_at=current_memory.updated_at,  # Use updated_at as the version timestamp
+                change_reason=None,  # Current version has no change reason
+            )
+
+        # Otherwise, look in version history
+        cursor = await self.db.execute(
+            """
+            SELECT id, memory_id, version, content, content_type,
+                   tags, metadata, created_at, change_reason
+            FROM memory_versions
+            WHERE memory_id = ? AND version = ?
+            """,
+            (memory_id, version_number),
+        )
+        row = await cursor.fetchone()
+
+        if not row:
+            return None
+
+        row_dict = dict(row)
+        return MemoryVersion(
+            id=row_dict["id"],
+            memory_id=row_dict["memory_id"],
+            version=row_dict["version"],
+            content=row_dict["content"],
+            content_type=row_dict["content_type"],
+            tags=json.loads(row_dict["tags"]) if row_dict["tags"] else [],
+            metadata=json.loads(row_dict["metadata"]) if row_dict["metadata"] else {},
+            created_at=datetime.fromisoformat(row_dict["created_at"]),
+            change_reason=row_dict.get("change_reason"),
+        )
+
+    async def prune_old_versions(
+        self, memory_id: str, max_versions: int = 10
+    ) -> int:
+        """Delete versions beyond retention limit.
+
+        Args:
+            memory_id: Memory ID
+            max_versions: Maximum versions to keep
+
+        Returns:
+            Number of deleted versions
+        """
+        cursor = await self.db.execute(
+            """
+            DELETE FROM memory_versions
+            WHERE memory_id = ? AND version NOT IN (
+                SELECT version FROM memory_versions
+                WHERE memory_id = ?
+                ORDER BY version DESC
+                LIMIT ?
+            )
+            """,
+            (memory_id, memory_id, max_versions),
+        )
+        await self.db.commit()
+        return cursor.rowcount

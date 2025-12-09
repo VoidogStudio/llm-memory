@@ -43,6 +43,9 @@ from src.services.project_scan_service import ProjectScanService
 from src.services.session_learning_service import SessionLearningService
 from src.services.knowledge_sync_service import KnowledgeSyncService
 from src.services.staleness_service import StalenessService
+from src.services.versioning_service import VersioningService
+from src.services.schema_service import SchemaService
+from src.services.dependency_service import DependencyService
 
 
 @pytest.fixture(scope="session")
@@ -160,16 +163,24 @@ async def namespace_service(test_settings: Settings) -> NamespaceService:
 
 
 @pytest_asyncio.fixture
+async def schema_service(memory_db: Database, namespace_service: NamespaceService) -> SchemaService:
+    """Schema service."""
+    return SchemaService(db=memory_db, namespace_service=namespace_service)
+
+
+@pytest_asyncio.fixture
 async def memory_service(
     memory_repository: MemoryRepository,
     embedding_service: EmbeddingService,
     namespace_service: NamespaceService,
+    schema_service: SchemaService,
 ) -> MemoryService:
     """Memory service."""
     return MemoryService(
         repository=memory_repository,
         embedding_service=embedding_service,
         namespace_service=namespace_service,
+        schema_service=schema_service,
     )
 
 
@@ -287,6 +298,26 @@ async def staleness_service(
     return StalenessService(
         memory_repository=memory_repository,
         file_hash_service=FileHashService(),
+    )
+
+
+@pytest_asyncio.fixture
+async def versioning_service(memory_repository: MemoryRepository) -> VersioningService:
+    """Versioning service."""
+    return VersioningService(repository=memory_repository)
+
+
+@pytest_asyncio.fixture
+async def dependency_service(
+    memory_db: Database,
+    memory_repository: MemoryRepository,
+    linking_service: LinkingService,
+) -> DependencyService:
+    """Dependency service."""
+    return DependencyService(
+        memory_repository=memory_repository,
+        linking_service=linking_service,
+        db=memory_db,
     )
 
 

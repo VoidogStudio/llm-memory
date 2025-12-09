@@ -19,6 +19,9 @@ Persistent memory and knowledge management for LLMs via Model Context Protocol (
 - **Knowledge Synchronization** - Continuous sync of external documentation sources (v1.6.0)
 - **Session Learning** - Automatic extraction and deduplication of learning content (v1.6.0)
 - **Staleness Detection** - Identify and refresh outdated knowledge (v1.6.0)
+- **Memory Versioning** - Track version history with rollback capability (v1.7.0)
+- **Structured Memory Schema** - Type-safe memory storage with schema validation (v1.7.0)
+- **Dependency Tracking** - Analyze and propagate changes to dependent memories (v1.7.0)
 - **Multi-Project Namespace** - Logical separation of memories per project (v1.4.0)
 - **Auto-detection** - Automatic namespace from git URL or directory name (v1.4.0)
 - **Cross-project Sharing** - Share knowledge via `shared` namespace (v1.4.0)
@@ -109,7 +112,7 @@ Create `.mcp.json` in your project root:
 }
 ```
 
-## MCP Tools (37)
+## MCP Tools (48)
 
 ### Memory Management (11)
 
@@ -192,6 +195,32 @@ Create `.mcp.json` in your project root:
 | `session_learn` | Record and deduplicate session learning content |
 | `knowledge_check_staleness` | Detect stale or outdated knowledge |
 | `knowledge_refresh_stale` | Update, archive, or delete stale knowledge |
+
+### Memory Versioning (4) - v1.7.0
+
+| Tool | Description |
+|------|-------------|
+| `memory_version_history` | Get complete version history for a memory |
+| `memory_version_get` | Retrieve a specific version |
+| `memory_version_rollback` | Restore memory to a previous version |
+| `memory_version_diff` | Compare two versions and view changes |
+
+### Structured Schema (5) - v1.7.0
+
+| Tool | Description |
+|------|-------------|
+| `memory_schema_register` | Register a custom memory schema |
+| `memory_schema_list` | List all registered schemas |
+| `memory_schema_get` | Get detailed schema information |
+| `memory_store_typed` | Store memory with schema validation |
+| `memory_search_typed` | Search memories by type and field values |
+
+### Dependency Tracking (2) - v1.7.0
+
+| Tool | Description |
+|------|-------------|
+| `memory_dependency_analyze` | Analyze impact of changes on dependent memories |
+| `memory_dependency_propagate` | Propagate update notifications to dependents |
 
 ## Configuration
 
@@ -608,6 +637,99 @@ knowledge_refresh_stale(
 )
 ```
 
+### Memory Versioning (v1.7.0)
+
+```python
+# Get version history
+memory_version_history(
+    memory_id="550e8400-e29b-41d4-a716-446655440000",
+    limit=10
+)
+
+# Get a specific version
+memory_version_get(
+    memory_id="550e8400-e29b-41d4-a716-446655440000",
+    version=2
+)
+
+# Rollback to a previous version
+memory_version_rollback(
+    memory_id="550e8400-e29b-41d4-a716-446655440000",
+    target_version=2,
+    reason="Reverting incorrect changes"
+)
+
+# Compare two versions
+memory_version_diff(
+    memory_id="550e8400-e29b-41d4-a716-446655440000",
+    old_version=1,
+    new_version=3
+)
+```
+
+### Structured Memory Schema (v1.7.0)
+
+```python
+# Register a schema
+memory_schema_register(
+    name="error_log",
+    fields=[
+        {"name": "error_type", "type": "string", "required": True},
+        {"name": "message", "type": "string", "required": True},
+        {"name": "severity", "type": "integer", "default": 1}
+    ],
+    description="Schema for error logs"
+)
+
+# List all schemas
+memory_schema_list(include_fields=True)
+
+# Store a typed memory
+memory_store_typed(
+    schema_name="error_log",
+    structured_content={
+        "error_type": "TypeError",
+        "message": "Cannot read property 'x' of undefined",
+        "severity": 2
+    },
+    tags=["error", "frontend"]
+)
+
+# Search typed memories
+memory_search_typed(
+    schema_name="error_log",
+    field_conditions={"error_type": "TypeError"},
+    top_k=10
+)
+```
+
+### Dependency Tracking (v1.7.0)
+
+```python
+# Create a dependency link
+memory_link(
+    source_id="config-uuid",
+    target_id="derived-uuid",
+    link_type="DEPENDS_ON",
+    cascade_on_update=True,
+    cascade_on_delete=True
+)
+
+# Analyze impact before making changes
+memory_dependency_analyze(
+    memory_id="config-uuid",
+    cascade_type="update",
+    max_depth=3
+)
+
+# Propagate change notifications to dependents
+memory_dependency_propagate(
+    memory_id="config-uuid",
+    notification_type="update",
+    metadata={"reason": "Configuration updated"}
+)
+```
+
 ## Architecture
 
 ### Memory Tiers
@@ -643,6 +765,11 @@ knowledge_refresh_stale(
 - [Decay Tools](docs/decay-tools.md) (v1.2.0)
 - [Linking Tools](docs/linking-tools.md) (v1.2.0)
 - [Similarity Tools](docs/similarity-tools.md) (v1.4.0)
+- [Context Tools](docs/context-tools.md) (v1.5.0)
+- [Acquisition Tools](docs/acquisition-tools.md) (v1.6.0)
+- [Versioning Tools](docs/versioning-tools.md) (v1.7.0)
+- [Schema Tools](docs/schema-tools.md) (v1.7.0)
+- [Dependency Tools](docs/dependency-tools.md) (v1.7.0)
 - [Knowledge Tools](docs/knowledge-tools.md)
 - [Export/Import Tools](docs/export-import-tools.md) (v1.2.0)
 - [Agent Tools](docs/agent-tools.md)

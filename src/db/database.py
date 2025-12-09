@@ -183,6 +183,9 @@ class Database:
         if current_version < 5:
             await self._migrate_v5()
 
+        if current_version < 6:
+            await self._migrate_v6()
+
     async def _migrate_v1(self) -> None:
         """Initial database schema migration."""
         async with self.transaction():
@@ -628,6 +631,120 @@ class Database:
             await self.execute(
                 "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
                 (5, datetime.now(timezone.utc).isoformat()),
+            )
+
+    async def _migrate_v6(self) -> None:
+        """v1.7.0 migration: Advanced Memory Features (Versioning, Schema, Dependencies)."""
+        async with self.transaction():
+            # FR-001: Memory Versioning - Add versioning columns to memories
+            await self.execute("""
+                ALTER TABLE memories
+                ADD COLUMN version INTEGER DEFAULT 1
+            """)
+
+            await self.execute("""
+                ALTER TABLE memories
+                ADD COLUMN previous_version_id TEXT
+            """)
+
+            # FR-002: Structured Memory Schema - Add schema columns to memories
+            await self.execute("""
+                ALTER TABLE memories
+                ADD COLUMN schema_id TEXT
+            """)
+
+            await self.execute("""
+                ALTER TABLE memories
+                ADD COLUMN structured_content TEXT
+            """)
+
+            # FR-001: Create memory_versions table
+            await self.execute("""
+                CREATE TABLE memory_versions (
+                    id TEXT PRIMARY KEY,
+                    memory_id TEXT NOT NULL,
+                    version INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    tags TEXT DEFAULT '[]',
+                    metadata TEXT DEFAULT '{}',
+                    created_at DATETIME NOT NULL,
+                    change_reason TEXT,
+                    FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE,
+                    UNIQUE(memory_id, version)
+                )
+            """)
+
+            await self.execute("""
+                CREATE INDEX idx_versions_memory
+                ON memory_versions(memory_id, version DESC)
+            """)
+
+            # FR-002: Create memory_schemas table
+            await self.execute("""
+                CREATE TABLE memory_schemas (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    namespace TEXT NOT NULL,
+                    version INTEGER DEFAULT 1,
+                    fields TEXT NOT NULL,
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL,
+                    UNIQUE(namespace, name, version)
+                )
+            """)
+
+            await self.execute("""
+                CREATE INDEX idx_schemas_namespace
+                ON memory_schemas(namespace, name)
+            """)
+
+            # FR-003: Dependency Tracking - Add cascade columns to memory_links
+            await self.execute("""
+                ALTER TABLE memory_links
+                ADD COLUMN cascade_on_update INTEGER DEFAULT 0
+            """)
+
+            await self.execute("""
+                ALTER TABLE memory_links
+                ADD COLUMN cascade_on_delete INTEGER DEFAULT 0
+            """)
+
+            await self.execute("""
+                ALTER TABLE memory_links
+                ADD COLUMN strength REAL DEFAULT 1.0
+            """)
+
+            # FR-003: Create dependency_notifications table
+            await self.execute("""
+                CREATE TABLE dependency_notifications (
+                    id TEXT PRIMARY KEY,
+                    source_memory_id TEXT NOT NULL,
+                    target_memory_id TEXT NOT NULL,
+                    notification_type TEXT NOT NULL,
+                    metadata TEXT DEFAULT '{}',
+                    created_at DATETIME NOT NULL,
+                    processed_at DATETIME,
+                    FOREIGN KEY (source_memory_id) REFERENCES memories(id) ON DELETE CASCADE,
+                    FOREIGN KEY (target_memory_id) REFERENCES memories(id) ON DELETE CASCADE
+                )
+            """)
+
+            await self.execute("""
+                CREATE INDEX idx_notifications_pending
+                ON dependency_notifications(target_memory_id, processed_at)
+                WHERE processed_at IS NULL
+            """)
+
+            await self.execute("""
+                CREATE INDEX idx_notifications_source
+                ON dependency_notifications(source_memory_id)
+            """)
+
+            # Record migration version
+            await self.execute(
+                "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
+                (6, datetime.now(timezone.utc).isoformat()),
             )
 
     @staticmethod
